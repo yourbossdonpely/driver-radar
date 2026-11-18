@@ -50,7 +50,7 @@ the gap:
 
 ### Install from a release
 
-1. Download `DriverRadar-1.3.0.zip` from
+1. Download `DriverRadar-1.3.2.zip` from
    [**Releases**](https://github.com/yourbossdonpely/driver-radar/releases/latest).
 2. Extract it anywhere (for example `C:\Tools\DriverRadar`). Avoid `Program Files` — the
    app writes downloads next to itself.
@@ -179,7 +179,9 @@ node cli.js install     :: download + install all available updates (admin)
    comparison. The OS id is detected (Windows 10 vs 11), not hardcoded. Laptop parts are
    matched inside NVIDIA's `… (Notebooks)` series — the product id selects the notebook
    package — so a mobile GPU (`… Laptop GPU`, `… with Max-Q Design`) gets the notebook
-   driver and a desktop GPU does not.
+   driver and a desktop GPU does not. A name carrying `Laptop`/`Notebook`/`Mobile`/`Max-Q`
+   never falls back to a desktop series: when the notebook series has no such product the
+   NVIDIA source stays silent and the catalog result is used instead.
 
 ### Fuzzy search is not a match
 

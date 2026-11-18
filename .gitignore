@@ -1,0 +1,14 @@
+# Runtime data
+data/
+dist/
+*.log
+*.zip
+
+# Dependencies (the app has none, but keep the repo clean)
+node_modules/
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

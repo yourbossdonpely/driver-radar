@@ -16,7 +16,6 @@ function pad(value, width) {
 }
 
 async function runScan() {
-  const sub = scan.subscribeForCli?.();
   const started = await scan.scan();
   if (!started.started && started.error) throw new Error(started.error);
 

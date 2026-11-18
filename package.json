@@ -1,6 +1,6 @@
 {
   "name": "driver-radar",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": false,
   "description": "Open-source Windows driver scanner and updater: verifies packages against the Microsoft Update Catalog and downloads them over parallel connections.",
   "main": "server.js",

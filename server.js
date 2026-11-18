@@ -14,7 +14,7 @@ const { checkAdmin, isAdminSync } = require('./lib/admin');
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const PORT = Number(process.env.PORT || 7788);
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 
 // A dead local server looks like "Failed to fetch" in the browser, so log any
 // stray error and keep serving instead of exiting silently.
@@ -81,7 +81,14 @@ function readBody(req, limit = 2 * 1024 * 1024) {
 }
 
 async function serveStatic(res, pathname) {
-  const rel = pathname === '/' ? 'index.html' : decodeURIComponent(pathname).replace(/^\/+/, '');
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    // A malformed escape (%zz) is a bad request, not a server error.
+    return json(res, 400, { error: 'bad request' });
+  }
+  const rel = decoded === '/' ? 'index.html' : decoded.replace(/^\/+/, '');
   const file = path.resolve(PUBLIC, rel);
   if (!file.startsWith(PUBLIC + path.sep) && file !== path.join(PUBLIC, 'index.html')) {
     return json(res, 403, { error: 'forbidden' });
@@ -168,6 +175,7 @@ async function handleApi(req, res, url) {
       install: body.install !== false,
       parts: body.parts,
       restorePoint: body.restorePoint,
+      backup: body.backup,
     });
     return json(res, result.error ? 409 : 200, result);
   }
@@ -183,7 +191,10 @@ async function handleApi(req, res, url) {
     let target = jobs.DOWNLOAD_DIR;
     if (body.file) {
       const resolved = path.resolve(body.file);
-      if (!resolved.startsWith(jobs.DOWNLOAD_DIR)) return json(res, 403, { error: 'forbidden' });
+      // Compare on a separator boundary: a plain prefix test would also accept
+      // a sibling folder such as "downloads-old".
+      const inside = resolved === jobs.DOWNLOAD_DIR || resolved.startsWith(jobs.DOWNLOAD_DIR + path.sep);
+      if (!inside) return json(res, 403, { error: 'forbidden' });
       target = resolved;
     }
     const child = spawn('explorer.exe', [target], { detached: true, stdio: 'ignore' });

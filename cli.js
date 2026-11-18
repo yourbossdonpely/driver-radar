@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 'use strict';
 
 /* Command-line front end. Same engine the UI uses, no browser required. */

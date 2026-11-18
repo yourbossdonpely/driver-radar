@@ -176,7 +176,10 @@ node cli.js install     :: download + install all available updates (admin)
    Only packages that explicitly list the device's hardware ID are offered.
 3. **NVIDIA** — the GeForce driver lookup API. GPU vendors publish faster than the catalog,
    so the marketing version (`621.24`) is mapped to the Windows build (`…2124`) for
-   comparison. The OS id is detected (Windows 10 vs 11), not hardcoded.
+   comparison. The OS id is detected (Windows 10 vs 11), not hardcoded. Laptop parts are
+   matched inside NVIDIA's `… (Notebooks)` series — the product id selects the notebook
+   package — so a mobile GPU (`… Laptop GPU`, `… with Max-Q Design`) gets the notebook
+   driver and a desktop GPU does not.
 
 ### Fuzzy search is not a match
 

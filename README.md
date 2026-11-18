@@ -277,6 +277,7 @@ driver-radar/
 ├─ server.js              HTTP server, static files, JSON API, SSE
 ├─ supervisor.js          keeps the server alive, restarts it after a crash
 ├─ cli.js                 terminal front end
+├─ check-nvidia.js        on-demand check of the NVIDIA GPU matcher
 ├─ start.cmd              launcher: elevates, installs Node, opens the browser
 ├─ requirements.txt       what the app needs from Windows (no packages)
 │
@@ -355,6 +356,9 @@ test machine is Windows 11 x64; other reports are welcome.
 
 Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Good first
 contributions: vendor adapters, Windows 10/ARM64 test reports, UI polish, and translations.
+
+Changed the NVIDIA matching? `node check-nvidia.js` asserts the laptop, desktop and
+unknown-device rules against the live lookup and exits non-zero on a mismatch.
 
 ## License
 

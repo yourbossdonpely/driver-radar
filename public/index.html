@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="dark" />
     <title>DriverRadar</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=4" />
+    <link rel="stylesheet" href="/styles.css?v=5" />
   </head>
   <body>
     <div class="ambient" aria-hidden="true"></div>
@@ -191,9 +191,11 @@
         <span id="jobSpeed">0 B/s</span>
         <span id="jobBytes">0 B / 0 B</span>
       </div>
+      <div class="job-notes" id="jobNotes" hidden></div>
       <div class="job-items" id="jobItems"></div>
       <footer class="job-foot">
         <button class="btn ghost small" id="jobCancel">Cancel</button>
+        <button class="btn ghost small hidden" id="jobRetry">Retry failed</button>
         <button class="btn primary small hidden" id="jobRescan">Rescan</button>
         <button class="btn ghost small" id="jobFolder">Open folder</button>
       </footer>
@@ -210,6 +212,11 @@
           <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
           <span class="toggle-text">Create a restore point first</span>
         </label>
+        <label class="toggle modal-toggle">
+          <input type="checkbox" id="confirmBackup" checked />
+          <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+          <span class="toggle-text">Back up the current drivers first</span>
+        </label>
         <div class="modal-actions">
           <button value="cancel" class="btn ghost">Cancel</button>
           <button value="ok" class="btn primary" id="confirmOk">Start</button>
@@ -219,6 +226,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="/app.js?v=4"></script>
+    <script src="/app.js?v=5"></script>
   </body>
 </html>

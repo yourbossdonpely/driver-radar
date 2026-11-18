@@ -50,7 +50,7 @@ the gap:
 
 ### Install from a release
 
-1. Download `DriverRadar-1.1.0.zip` from
+1. Download `DriverRadar-1.2.0.zip` from
    [**Releases**](https://github.com/yourbossdonpely/driver-radar/releases/latest).
 2. Extract it anywhere (for example `C:\Tools\DriverRadar`). Avoid `Program Files` — the
    app writes downloads next to itself.
@@ -113,9 +113,11 @@ machine without it. The repository has no dependencies, so there is no `npm inst
    the verification result.
 4. Tick the updates you want, choose **16 connections**, and press **Update selected** —
    or **Download only** to keep the files without installing.
+5. If a package fails, the job panel offers **Retry N failed** for just those items.
 
-An optional System Restore point (on by default) is created before the first install, and the
-job reports whether a reboot is required. Firmware/BIOS packages are intentionally excluded.
+Before the first install the app creates an optional System Restore point (on by default) and
+runs an optional driver backup (also on by default), and the job reports whether a reboot is
+required. Firmware/BIOS packages are intentionally excluded.
 
 ### Command line
 
@@ -133,7 +135,7 @@ node cli.js install     :: download + install all available updates (admin)
 | GET | `/api/state` | Scan snapshot, admin flag, recent jobs |
 | POST | `/api/scan` | Start a scan (returns immediately) |
 | GET | `/api/events` | SSE stream of `scan` / `job` / `state` events |
-| POST | `/api/install` | `{items:[{rowId}], install, parts, restorePoint}` |
+| POST | `/api/install` | `{items:[{rowId}], install, parts, restorePoint, backup}` |
 | POST | `/api/cancel` | `{jobId}` |
 | POST | `/api/open` | Open the downloads folder |
 | POST | `/api/elevate` | Restart the server elevated |
@@ -207,6 +209,9 @@ installed build is shown as **"Newer"**, never as an update. No downgrades.
   its size.
 - **No downgrades** and no firmware/BIOS flashing.
 - **Optional restore point** before the first install.
+- **Exported driver backup.** `pnputil /export-driver *` writes every third-party driver
+  package to `data\driver-backup\<timestamp>\` first, so a bad update can be rolled back
+  even when System Restore is disabled on the machine.
 - **Signed drivers only** — `pnputil` enforces Windows driver signing; unsigned packages
   fail loudly.
 - **Local only** — binds `127.0.0.1`, validates the `Host` header, path-traversal checks
@@ -247,6 +252,7 @@ from those machines are very welcome.
 | No updates found | The machine may already be current. Check the **Problems** tab and the notes under the list; OEM builds can be newer than the public catalog. |
 | Port 7788 already in use | Another instance is running. `start.cmd` reuses it (and restarts it elevated if needed). |
 | Antivirus flags `pnputil` | It is the official Windows driver installer. The app calls it directly; review `scripts/install-inf.ps1`. |
+| "Driver backup skipped" note | `pnputil /export-driver` needs administrator rights and a writable `data\` folder. The install still proceeds; check the note for the reason. |
 
 ## Project layout
 
@@ -271,7 +277,8 @@ driver-radar/
 │  └─ util.js             version compare, formatting, bounded concurrency
 │
 ├─ scripts/               inventory, WU search/install, pnputil, restore point,
-│                         bootstrap (installs Node.js on first run)
+│                         driver backup export, bootstrap (installs Node.js
+│                         on first run)
 ├─ public/                UI (HTML, CSS, JS — no build step)
 ├─ docs/                  screenshots
 └─ data/                  runtime cache + downloads (git-ignored)

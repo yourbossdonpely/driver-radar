@@ -587,7 +587,15 @@
 
   /* ── jobs ──────────────────────────────────────────────── */
 
-  function ask({ title, body, rows = [], okLabel = 'Continue', showRestore = false, cancelLabel = 'Cancel' }) {
+  function ask({
+    title,
+    body,
+    rows = [],
+    okLabel = 'Continue',
+    showRestore = false,
+    showBackup = false,
+    cancelLabel = 'Cancel',
+  }) {
     return new Promise((resolve) => {
       const dlg = $('#confirm');
       $('#confirmTitle').textContent = title;
@@ -601,10 +609,16 @@
       cancelBtn.textContent = cancelLabel;
       const restoreLabel = $('#confirmRestore').closest('label');
       restoreLabel.style.display = showRestore ? '' : 'none';
+      const backupLabel = $('#confirmBackup').closest('label');
+      backupLabel.style.display = showBackup ? '' : 'none';
 
       const onClose = () => {
         dlg.removeEventListener('close', onClose);
-        resolve({ ok: dlg.returnValue === 'ok', restore: $('#confirmRestore').checked });
+        resolve({
+          ok: dlg.returnValue === 'ok',
+          restore: $('#confirmRestore').checked,
+          backup: $('#confirmBackup').checked,
+        });
       };
       dlg.addEventListener('close', onClose);
       dlg.returnValue = 'cancel';
@@ -630,6 +644,7 @@
       rows,
       okLabel: install ? 'Install now' : 'Download',
       showRestore: install,
+      showBackup: install,
     });
     if (!answer.ok) return;
 
@@ -641,6 +656,7 @@
           install,
           parts: Number($('#partsSelect').value),
           restorePoint: answer.restore,
+          backup: answer.backup,
         },
       });
       if (res.error === 'admin') {
@@ -694,6 +710,17 @@
 
     $('#jobSpeed').textContent = running ? `${fmtBytes(stats.speed)}/s` : '';
     $('#jobBytes').textContent = `${fmtBytes(stats.downloaded)} / ${fmtBytes(stats.bytes)}`;
+
+    const notes = job.notes || [];
+    const notesBox = $('#jobNotes');
+    notesBox.hidden = notes.length === 0;
+    notesBox.innerHTML = notes
+      .map((n) => `<div class="job-note ${esc(n.level || '')}">${esc(n.text)}</div>`)
+      .join('');
+
+    const failed = job.items.filter((item) => item.status === 'failed' && item.rowId);
+    $('#jobRetry').classList.toggle('hidden', running || failed.length === 0);
+    $('#jobRetry').textContent = `Retry ${failed.length} failed`;
 
     $('#jobItems').innerHTML = job.items
       .map((item) => {
@@ -837,6 +864,20 @@
       } catch (err) {
         toast(err.message || 'Could not cancel.', 'bad');
       }
+    });
+
+    $('#jobRetry').addEventListener('click', () => {
+      const job = app.jobs.find((j) => j.id === $('#jobPanel').dataset.jobId);
+      if (!job) return;
+      const known = new Set((app.scan?.rows || []).map((r) => r.id));
+      const ids = job.items
+        .filter((item) => item.status === 'failed' && item.rowId && known.has(item.rowId))
+        .map((item) => item.rowId);
+      if (!ids.length) {
+        toast('Rescan first — these devices are no longer in the current scan.', 'bad');
+        return;
+      }
+      startJob(ids, job.install);
     });
 
     $('#jobRescan').addEventListener('click', () => {

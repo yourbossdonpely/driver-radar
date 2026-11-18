@@ -50,7 +50,7 @@ the gap:
 
 ### Install from a release
 
-1. Download `DriverRadar-1.2.0.zip` from
+1. Download `DriverRadar-1.3.0.zip` from
    [**Releases**](https://github.com/yourbossdonpely/driver-radar/releases/latest).
 2. Extract it anywhere (for example `C:\Tools\DriverRadar`). Avoid `Program Files` — the
    app writes downloads next to itself.
@@ -114,6 +114,8 @@ machine without it. The repository has no dependencies, so there is no `npm inst
 4. Tick the updates you want, choose **16 connections**, and press **Update selected** —
    or **Download only** to keep the files without installing.
 5. If a package fails, the job panel offers **Retry N failed** for just those items.
+6. **Restore from backup** in the toolbar lists earlier snapshots and reinstalls one, which
+   is the rollback path if an update goes wrong.
 
 Before the first install the app creates an optional System Restore point (on by default) and
 runs an optional driver backup (also on by default), and the job reports whether a reboot is
@@ -136,6 +138,8 @@ node cli.js install     :: download + install all available updates (admin)
 | POST | `/api/scan` | Start a scan (returns immediately) |
 | GET | `/api/events` | SSE stream of `scan` / `job` / `state` events |
 | POST | `/api/install` | `{items:[{rowId}], install, parts, restorePoint, backup}` |
+| GET | `/api/backups` | Driver backup snapshots in `data\driver-backup` |
+| POST | `/api/restore` | `{id}` — reinstall one snapshot (admin) |
 | POST | `/api/cancel` | `{jobId}` |
 | POST | `/api/open` | Open the downloads folder |
 | POST | `/api/elevate` | Restart the server elevated |
@@ -216,6 +220,9 @@ ranks above one naming only the other. Nothing is hardcoded to 10 or 11.
 - **Exported driver backup.** `pnputil /export-driver *` writes every third-party driver
   package to `data\driver-backup\<timestamp>\` first, so a bad update can be rolled back
   even when System Restore is disabled on the machine.
+- **Restore is explicit.** A snapshot is only reinstalled when you pick it and confirm a
+  dialog that names it; it needs the same administrator rights as an install, runs through
+  the same `pnputil` path, and streams into the same job panel.
 - **Signed drivers only** — `pnputil` enforces Windows driver signing; unsigned packages
   fail loudly.
 - **Local only** — binds `127.0.0.1`, validates the `Host` header, path-traversal checks
@@ -274,7 +281,9 @@ driver-radar/
 │  ├─ nvidia.js           GPU product matching and WHQL lookup
 │  ├─ downloader.js       multi-part HTTP Range downloader
 │  ├─ installer.js        CAB extraction, INF matching, pnputil, vendor installers
-│  ├─ jobs.js             queue, parallel downloads, sequential installs, progress
+│  ├─ jobs.js             queue, parallel downloads, sequential installs, restores,
+│  │                      progress
+│  ├─ backup.js           driver backup snapshots: list, validate, path guard
 │  ├─ ps.js               PowerShell runner (script → UTF-8 JSON → object)
 │  ├─ admin.js            elevation check
 │  ├─ bus.js              SSE fan-out

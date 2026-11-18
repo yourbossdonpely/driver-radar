@@ -189,6 +189,10 @@ devices and left three genuine updates.
 catalog date. Versions are compared as dotted numeric components; anything lower than the
 installed build is shown as **"Newer"**, never as an update. No downgrades.
 
+The running Windows release breaks ties: the machine's build decides whether Windows 10 or
+Windows 11 is *its* release, and at an equal version a package naming the running release
+ranks above one naming only the other. Nothing is hardcoded to 10 or 11.
+
 ### Why it is fast
 
 - **Persisted last scan** — the UI paints the previous result instantly on startup.

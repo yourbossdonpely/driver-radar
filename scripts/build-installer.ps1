@@ -8,7 +8,7 @@
   app for the current user, adds Start Menu and Desktop shortcuts, registers an
   entry in Apps & features, and carries a working uninstaller.
 
-  No new dependencies. The setup binary is C# compiled with the .NET Framework
+  No external dependencies. The setup binary is C# compiled with the .NET Framework
   csc.exe that ships with Windows, and the app is embedded as a resource, so the
   build needs nothing beyond git, PowerShell and Windows itself.
 
@@ -28,6 +28,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 $packageJson = Join-Path $Root 'package.json'
 $serverFile = Join-Path $Root 'server.js'
 $sourceFile = Join-Path $PSScriptRoot '..\installer\setup.cs'
+$licenseFile = Join-Path $Root 'LICENSE'
 
 if (-not $Version) {
   if (-not (Test-Path -LiteralPath $packageJson)) { throw "Missing $packageJson" }
@@ -88,30 +89,24 @@ try {
     (New-Object System.Text.UTF8Encoding($false))
   )
 
-  # Icon: drawn rather than shipped as a binary blob, so the repo stays text.
+  # Icon: the project's own PNG, so the EXE, shortcuts and Add/Remove Programs
+  # show the same image that ships in the repo.
+  $iconPng = Join-Path $Root 'appicon.png'
+  if (-not (Test-Path -LiteralPath $iconPng)) { throw "Missing app icon: $iconPng" }
+
   $icon = Join-Path $work 'driverradar.ico'
   Add-Type -AssemblyName System.Drawing
+  $src = [System.Drawing.Image]::FromFile($iconPng)
   $size = 256
   $bitmap = New-Object System.Drawing.Bitmap $size, $size
   $g = [System.Drawing.Graphics]::FromImage($bitmap)
   try {
     $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
     $g.Clear([System.Drawing.Color]::Transparent)
-
-    $navy = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 15, 23, 42))
-    $cyan = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 56, 189, 248))
-    $ring = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(255, 56, 189, 248)), 14
-    $sweep = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(200, 125, 211, 252)), 10
-    $sweep.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $sweep.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-
-    $g.FillEllipse($navy, 4, 4, $size - 8, $size - 8)
-    $g.DrawEllipse($ring, 40, 40, 176, 176)
-    $g.DrawEllipse($ring, 88, 88, 80, 80)
-    $g.DrawLine($sweep, 128, 128, 196, 66)
-    $g.FillEllipse($cyan, 118, 118, 20, 20)
+    $g.DrawImage($src, 0, 0, $size, $size)
   } finally {
     $g.Dispose()
+    $src.Dispose()
   }
 
   $png = Join-Path $work 'icon.png'
@@ -149,7 +144,9 @@ try {
     '/nologo', '/target:winexe', '/platform:anycpu', '/optimize+', '/langversion:5',
     "/out:$outFile",
     "/win32icon:$icon",
-    "/resource:$payload,DriverRadar.payload.zip"
+    "/resource:$payload,DriverRadar.payload.zip",
+    "/resource:$iconPng,DriverRadar.icon.png",
+    "/resource:$licenseFile,DriverRadar.LICENSE"
   ) + $references + @(
     (Join-Path $Root 'installer\setup.cs'), $info
   )
@@ -158,14 +155,55 @@ try {
   if ($LASTEXITCODE -ne 0) { throw "csc failed with exit code $LASTEXITCODE" }
   if (-not (Test-Path -LiteralPath $outFile)) { throw "csc reported success but $outFile is missing" }
 
+  # Sign with the DriverRadar code-signing certificate so the EXE shows a real
+  # publisher instead of the SmartScreen "unknown publisher" banner.
+  $pfx = Join-Path $Root 'driverradar.pfx'
+  $signtoolCandidates = @(
+    "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe",
+    "C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64\signtool.exe",
+    (Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\signtool.exe'),
+    (Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\signtool.exe')
+  )
+  $signtool = $signtoolCandidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
+
+  if (Test-Path -LiteralPath $pfx) {
+    $signed = $false
+    if ($signtool -and (Test-Path -LiteralPath $signtool)) {
+      $signArgs = @('sign', "/f:$pfx", '/p:DriverRadar2026!', '/fd:SHA256', '/tr:http://timestamp.digicert.com', '/td:SHA256', $outFile)
+      & $signtool $signArgs 2>$null | Out-Null
+      if ($LASTEXITCODE -ne 0) {
+        # Retry without timestamp server in case network timestamp fails
+        $signArgsNoTs = @('sign', "/f:$pfx", '/p:DriverRadar2026!', '/fd:SHA256', $outFile)
+        & $signtool $signArgsNoTs 2>$null | Out-Null
+      }
+      $sig = Get-AuthenticodeSignature -LiteralPath $outFile
+      if ($sig.SignerCertificate -ne $null) { $signed = $true }
+    }
+    if (-not $signed) {
+      $secPass = ConvertTo-SecureString 'DriverRadar2026!' -AsPlainText -Force
+      $certObj = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfx, $secPass, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
+      Set-AuthenticodeSignature -FilePath $outFile -Certificate $certObj -HashAlgorithm SHA256 | Out-Null
+    }
+    $sig = Get-AuthenticodeSignature -LiteralPath $outFile
+    if ($sig.SignerCertificate -eq $null) {
+      Write-Warning "Binary signing did not apply a SignerCertificate."
+    }
+  } else {
+    Write-Warning "Installer was NOT signed: driverradar.pfx is absent."
+  }
+
   $item = Get-Item -LiteralPath $outFile
   $hash = (Get-FileHash -LiteralPath $outFile -Algorithm SHA256).Hash.ToLowerInvariant()
+  $sig = Get-AuthenticodeSignature -LiteralPath $outFile
   [pscustomobject]@{
     version   = $Version
     commit    = $Commit
     installer = $item.FullName
     sizeBytes = $item.Length
     sha256    = $hash
+    signed    = ($sig.SignerCertificate -ne $null)
+    sigStatus = $sig.Status
+    signer    = $sig.SignerCertificate.Subject
   } | Format-List
 } finally {
   Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue

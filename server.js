@@ -15,7 +15,7 @@ const { checkAdmin, isAdminSync } = require('./lib/admin');
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const PORT = Number(process.env.PORT || 7788);
-const VERSION = '1.3.2';
+const VERSION = '1.3.3';
 
 // A dead local server looks like "Failed to fetch" in the browser, so log any
 // stray error and keep serving instead of exiting silently.

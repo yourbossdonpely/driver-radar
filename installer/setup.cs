@@ -25,9 +25,13 @@ namespace DriverRadarSetup
     internal static class Program
     {
         internal const string PayloadResource = "DriverRadar.payload.zip";
+        internal const string IconResource = "DriverRadar.icon.png";
+        internal const string LicenseResource = "DriverRadar.LICENSE";
         internal const string LauncherName = "DriverRadar.exe";
         internal const string UninstallKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\DriverRadar";
         internal const string ProjectUrl = "https://github.com/yourbossdonpely/driver-radar";
+        internal const string AuthorName = "yourbossdonpely (Don Pely)";
+        internal const string PublisherName = "yourbossdonpely";
 
         [STAThread]
         private static int Main(string[] args)
@@ -211,12 +215,13 @@ namespace DriverRadarSetup
             {
                 key.SetValue("DisplayName", "DriverRadar");
                 key.SetValue("DisplayVersion", BuildInfo.Version);
-                key.SetValue("Publisher", "DriverRadar contributors");
+                key.SetValue("Publisher", Program.PublisherName);
                 key.SetValue("InstallLocation", target);
                 key.SetValue("DisplayIcon", launcher + ",0");
                 key.SetValue("UninstallString", "\"" + launcher + "\" --uninstall");
                 key.SetValue("QuietUninstallString", "\"" + launcher + "\" --uninstall --silent");
                 key.SetValue("URLInfoAbout", Program.ProjectUrl);
+                key.SetValue("Contact", Program.AuthorName);
                 key.SetValue("NoModify", 1, RegistryValueKind.DWord);
                 key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
                 key.SetValue("EstimatedSize", EstimateSizeKb(target), RegistryValueKind.DWord);
@@ -399,22 +404,110 @@ namespace DriverRadarSetup
     internal sealed class SetupForm : Form
     {
         private readonly string baseDir;
+
+        // Header controls
+        private readonly Panel headerPanel = new Panel();
+        private readonly PictureBox logoBox = new PictureBox();
+        private readonly Label titleLabel = new Label();
+        private readonly Label taglineLabel = new Label();
+        private readonly Label authorLabel = new Label();
+
+        // Wizard Panels
+        private readonly Panel licensePanel = new Panel();
+        private readonly Panel optionsPanel = new Panel();
+        private readonly Panel progressPanel = new Panel();
+        private readonly Panel finishedPanel = new Panel();
+
+        // Step 1: License Agreement controls
+        private readonly TextBox licenseBox = new TextBox();
+        private readonly RadioButton rbAccept = new RadioButton();
+        private readonly RadioButton rbReject = new RadioButton();
+
+        // Step 2: Options controls
         private readonly TextBox pathBox = new TextBox();
-        private readonly CheckBox desktopBox = new CheckBox();
-        private readonly Button installButton = new Button();
-        private readonly Button closeButton = new Button();
         private readonly Button browseButton = new Button();
-        private readonly Button finishButton = new Button();
-        private readonly CheckBox launchBox = new CheckBox();
-        private readonly ProgressBar progress = new ProgressBar();
+        private readonly CheckBox desktopBox = new CheckBox();
+
+        // Step 3: Progress controls
         private readonly Label statusLabel = new Label();
-        private readonly Label headline = new Label();
+        private readonly ProgressBar progress = new ProgressBar();
+
+        // Step 4: Finished controls
+        private readonly CheckBox launchBox = new CheckBox();
+
+        // Navigation controls
+        private readonly Panel bottomPanel = new Panel();
+        private readonly Button backButton = new Button();
+        private readonly Button nextButton = new Button();
+        private readonly Button cancelButton = new Button();
+
+        private int currentStep = 1;
         private bool busy;
 
         internal SetupForm(string baseDir)
         {
             this.baseDir = baseDir;
             BuildUi();
+            ShowStep(1);
+        }
+
+        private static Image GetEmbeddedLogo()
+        {
+            try
+            {
+                Assembly assembly = Assembly.GetExecutingAssembly();
+                using (Stream stream = assembly.GetManifestResourceStream(Program.IconResource))
+                {
+                    if (stream != null) return Image.FromStream(stream);
+                }
+            }
+            catch { }
+
+            try
+            {
+                Icon icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+                if (icon != null) return icon.ToBitmap();
+            }
+            catch { }
+
+            return null;
+        }
+
+        private static string GetLicenseContent()
+        {
+            try
+            {
+                Assembly assembly = Assembly.GetExecutingAssembly();
+                using (Stream stream = assembly.GetManifestResourceStream(Program.LicenseResource))
+                {
+                    if (stream != null)
+                    {
+                        using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+                        {
+                            return reader.ReadToEnd();
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return "MIT License\r\n\r\n"
+                + "Copyright (c) 2026 yourbossdonpely (Don Pely) and DriverRadar contributors\r\n\r\n"
+                + "Permission is hereby granted, free of charge, to any person obtaining a copy\r\n"
+                + "of this software and associated documentation files (the \"Software\"), to deal\r\n"
+                + "in the Software without restriction, including without limitation the rights\r\n"
+                + "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\r\n"
+                + "copies of the Software, and to permit persons to whom the Software is\r\n"
+                + "furnished to do so, subject to the following conditions:\r\n\r\n"
+                + "The above copyright notice and this permission notice shall be included in all\r\n"
+                + "copies or substantial portions of the Software.\r\n\r\n"
+                + "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\r\n"
+                + "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\r\n"
+                + "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\r\n"
+                + "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\r\n"
+                + "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\r\n"
+                + "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\r\n"
+                + "SOFTWARE.";
         }
 
         private void BuildUi()
@@ -422,97 +515,315 @@ namespace DriverRadarSetup
             Text = "DriverRadar " + BuildInfo.Version + " Setup";
             Font = new Font("Segoe UI", 9F);
             BackColor = Color.White;
-            ClientSize = new Size(520, 340);
+            ClientSize = new Size(540, 400);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
 
-            Panel header = new Panel();
-            header.Bounds = new Rectangle(0, 0, 520, 74);
-            header.BackColor = Color.FromArgb(15, 23, 42);
-            Controls.Add(header);
+            try
+            {
+                Icon appIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+                if (appIcon != null) Icon = appIcon;
+            }
+            catch { }
 
-            Label title = new Label();
-            title.Text = "DriverRadar";
-            title.Font = new Font("Segoe UI Semibold", 16F, FontStyle.Bold);
-            title.ForeColor = Color.White;
-            title.AutoSize = true;
-            title.Location = new Point(20, 12);
-            header.Controls.Add(title);
+            // Header Panel
+            headerPanel.Bounds = new Rectangle(0, 0, 540, 76);
+            headerPanel.BackColor = Color.FromArgb(15, 23, 42);
+            Controls.Add(headerPanel);
 
-            Label tagline = new Label();
-            tagline.Text = "Windows driver scanner and updater  \u00b7  version " + BuildInfo.Version;
-            tagline.ForeColor = Color.FromArgb(148, 163, 184);
-            tagline.AutoSize = true;
-            tagline.Location = new Point(22, 46);
-            header.Controls.Add(tagline);
+            Image logo = GetEmbeddedLogo();
+            if (logo != null)
+            {
+                logoBox.Bounds = new Rectangle(16, 12, 52, 52);
+                logoBox.SizeMode = PictureBoxSizeMode.Zoom;
+                logoBox.Image = logo;
+                headerPanel.Controls.Add(logoBox);
+            }
 
-            headline.Text = "Install for this account";
-            headline.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
-            headline.AutoSize = true;
-            headline.Location = new Point(20, 92);
-            Controls.Add(headline);
+            titleLabel.Text = "DriverRadar";
+            titleLabel.Font = new Font("Segoe UI Semibold", 15F, FontStyle.Bold);
+            titleLabel.ForeColor = Color.White;
+            titleLabel.AutoSize = true;
+            titleLabel.Location = new Point(76, 10);
+            headerPanel.Controls.Add(titleLabel);
 
-            Label hint = new Label();
-            hint.Text = "No administrator rights are needed to install. The app asks for them when it installs a driver.";
-            hint.ForeColor = Color.FromArgb(71, 85, 105);
-            hint.AutoSize = true;
-            hint.Location = new Point(20, 114);
-            Controls.Add(hint);
+            taglineLabel.Text = "Windows driver scanner and updater  ·  v" + BuildInfo.Version;
+            taglineLabel.ForeColor = Color.FromArgb(148, 163, 184);
+            taglineLabel.AutoSize = true;
+            taglineLabel.Location = new Point(78, 36);
+            headerPanel.Controls.Add(taglineLabel);
+
+            authorLabel.Text = "Developed by " + Program.AuthorName;
+            authorLabel.Font = new Font("Segoe UI", 8.25F);
+            authorLabel.ForeColor = Color.FromArgb(56, 189, 248);
+            authorLabel.AutoSize = true;
+            authorLabel.Location = new Point(78, 54);
+            headerPanel.Controls.Add(authorLabel);
+
+            // Wizard Panels bounds
+            Rectangle contentArea = new Rectangle(0, 76, 540, 264);
+            licensePanel.Bounds = contentArea;
+            optionsPanel.Bounds = contentArea;
+            progressPanel.Bounds = contentArea;
+            finishedPanel.Bounds = contentArea;
+
+            Controls.Add(licensePanel);
+            Controls.Add(optionsPanel);
+            Controls.Add(progressPanel);
+            Controls.Add(finishedPanel);
+
+            BuildLicensePanel();
+            BuildOptionsPanel();
+            BuildProgressPanel();
+            BuildFinishedPanel();
+
+            // Bottom Navigation Panel
+            bottomPanel.Bounds = new Rectangle(0, 340, 540, 60);
+            bottomPanel.BackColor = Color.FromArgb(248, 250, 252);
+            Controls.Add(bottomPanel);
+
+            Panel line = new Panel();
+            line.Bounds = new Rectangle(0, 0, 540, 1);
+            line.BackColor = Color.FromArgb(226, 232, 240);
+            bottomPanel.Controls.Add(line);
+
+            backButton.Text = "< &Back";
+            backButton.Bounds = new Rectangle(264, 15, 80, 28);
+            backButton.Click += delegate { NavigateBack(); };
+            bottomPanel.Controls.Add(backButton);
+
+            nextButton.Text = "&Next >";
+            nextButton.Bounds = new Rectangle(350, 15, 84, 28);
+            nextButton.Click += delegate { NavigateNext(); };
+            bottomPanel.Controls.Add(nextButton);
+
+            cancelButton.Text = "Cancel";
+            cancelButton.Bounds = new Rectangle(440, 15, 84, 28);
+            cancelButton.DialogResult = DialogResult.Cancel;
+            cancelButton.Click += delegate { Close(); };
+            bottomPanel.Controls.Add(cancelButton);
+
+            AcceptButton = nextButton;
+            CancelButton = cancelButton;
+        }
+
+        private void BuildLicensePanel()
+        {
+            Label heading = new Label();
+            heading.Text = "License Agreement";
+            heading.Font = new Font("Segoe UI Semibold", 10.5F, FontStyle.Bold);
+            heading.Location = new Point(22, 10);
+            heading.AutoSize = true;
+            licensePanel.Controls.Add(heading);
+
+            Label sub = new Label();
+            sub.Text = "Please read the following license agreement. You must accept the terms to continue.";
+            sub.ForeColor = Color.FromArgb(71, 85, 105);
+            sub.Location = new Point(22, 30);
+            sub.AutoSize = true;
+            licensePanel.Controls.Add(sub);
+
+            licenseBox.Bounds = new Rectangle(22, 52, 496, 142);
+            licenseBox.Multiline = true;
+            licenseBox.ReadOnly = true;
+            licenseBox.ScrollBars = ScrollBars.Vertical;
+            licenseBox.BackColor = Color.White;
+            licenseBox.Font = new Font("Segoe UI", 8.5F);
+            licenseBox.Text = GetLicenseContent();
+            licensePanel.Controls.Add(licenseBox);
+
+            rbAccept.Text = "I &accept the agreement";
+            rbAccept.Location = new Point(24, 202);
+            rbAccept.AutoSize = true;
+            rbAccept.CheckedChanged += delegate
+            {
+                nextButton.Enabled = rbAccept.Checked;
+            };
+            licensePanel.Controls.Add(rbAccept);
+
+            rbReject.Text = "I do &not accept the agreement";
+            rbReject.Checked = true;
+            rbReject.Location = new Point(24, 226);
+            rbReject.AutoSize = true;
+            licensePanel.Controls.Add(rbReject);
+        }
+
+        private void BuildOptionsPanel()
+        {
+            Label heading = new Label();
+            heading.Text = "Select Destination Location";
+            heading.Font = new Font("Segoe UI Semibold", 10.5F, FontStyle.Bold);
+            heading.Location = new Point(22, 10);
+            heading.AutoSize = true;
+            optionsPanel.Controls.Add(heading);
+
+            Label sub = new Label();
+            sub.Text = "Where should DriverRadar be installed on your computer?";
+            sub.ForeColor = Color.FromArgb(71, 85, 105);
+            sub.Location = new Point(22, 30);
+            sub.AutoSize = true;
+            optionsPanel.Controls.Add(sub);
 
             Label folderLabel = new Label();
-            folderLabel.Text = "Install folder";
+            folderLabel.Text = "Install folder:";
+            folderLabel.Location = new Point(22, 60);
             folderLabel.AutoSize = true;
-            folderLabel.Location = new Point(20, 146);
-            Controls.Add(folderLabel);
+            optionsPanel.Controls.Add(folderLabel);
 
-            pathBox.Bounds = new Rectangle(20, 166, 398, 24);
+            pathBox.Bounds = new Rectangle(22, 80, 412, 24);
             pathBox.Text = Installer.DefaultTarget;
-            Controls.Add(pathBox);
+            optionsPanel.Controls.Add(pathBox);
 
             browseButton.Text = "Browse\u2026";
-            browseButton.Bounds = new Rectangle(426, 165, 74, 26);
+            browseButton.Bounds = new Rectangle(440, 79, 78, 26);
             browseButton.Click += delegate { Browse(); };
-            Controls.Add(browseButton);
+            optionsPanel.Controls.Add(browseButton);
 
-            desktopBox.Text = "Create a Desktop shortcut (a Start Menu shortcut is always created)";
+            Label hint = new Label();
+            hint.Text = "No administrator rights are needed to install. Driver updates ask for elevation when needed.";
+            hint.ForeColor = Color.FromArgb(71, 85, 105);
+            hint.Location = new Point(22, 118);
+            hint.Size = new Size(496, 32);
+            optionsPanel.Controls.Add(hint);
+
+            desktopBox.Text = "Create a Desktop shortcut (Start Menu shortcut is always created)";
             desktopBox.Checked = true;
+            desktopBox.Location = new Point(22, 160);
             desktopBox.AutoSize = true;
-            desktopBox.Location = new Point(20, 202);
-            Controls.Add(desktopBox);
+            optionsPanel.Controls.Add(desktopBox);
 
-            statusLabel.Bounds = new Rectangle(20, 230, 480, 20);
-            statusLabel.Text = "Ready to install.";
+            Label pubInfo = new Label();
+            pubInfo.Text = "Publisher: " + Program.AuthorName + "  ·  " + Program.ProjectUrl;
+            pubInfo.ForeColor = Color.FromArgb(100, 116, 139);
+            pubInfo.Font = new Font("Segoe UI", 8F);
+            pubInfo.Location = new Point(22, 205);
+            pubInfo.AutoSize = true;
+            optionsPanel.Controls.Add(pubInfo);
+        }
+
+        private void BuildProgressPanel()
+        {
+            Label heading = new Label();
+            heading.Text = "Installing DriverRadar\u2026";
+            heading.Font = new Font("Segoe UI Semibold", 10.5F, FontStyle.Bold);
+            heading.Location = new Point(22, 24);
+            heading.AutoSize = true;
+            progressPanel.Controls.Add(heading);
+
+            statusLabel.Bounds = new Rectangle(22, 64, 496, 20);
+            statusLabel.Text = "Preparing installation files\u2026";
             statusLabel.ForeColor = Color.FromArgb(71, 85, 105);
-            Controls.Add(statusLabel);
+            progressPanel.Controls.Add(statusLabel);
 
-            progress.Bounds = new Rectangle(20, 254, 480, 8);
+            progress.Bounds = new Rectangle(22, 92, 496, 18);
             progress.Style = ProgressBarStyle.Marquee;
-            progress.MarqueeAnimationSpeed = 0;
-            Controls.Add(progress);
+            progress.MarqueeAnimationSpeed = 30;
+            progressPanel.Controls.Add(progress);
 
-            installButton.Text = "Install";
-            installButton.Bounds = new Rectangle(330, 288, 82, 30);
-            installButton.Click += delegate { StartInstall(); };
-            Controls.Add(installButton);
+            Label info = new Label();
+            info.Text = "Please wait while DriverRadar extracts its application payload, creates desktop and Start Menu shortcuts, and registers with Windows.";
+            info.ForeColor = Color.FromArgb(100, 116, 139);
+            info.Location = new Point(22, 130);
+            info.Size = new Size(496, 40);
+            progressPanel.Controls.Add(info);
+        }
 
-            closeButton.Text = "Cancel";
-            closeButton.Bounds = new Rectangle(420, 288, 82, 30);
-            closeButton.DialogResult = DialogResult.Cancel;
-            Controls.Add(closeButton);
+        private void BuildFinishedPanel()
+        {
+            Label heading = new Label();
+            heading.Text = "Completing the DriverRadar Setup Wizard";
+            heading.Font = new Font("Segoe UI Semibold", 12F, FontStyle.Bold);
+            heading.Location = new Point(22, 24);
+            heading.AutoSize = true;
+            finishedPanel.Controls.Add(heading);
+
+            Label finishedText = new Label();
+            finishedText.Text = "DriverRadar " + BuildInfo.Version + " has been successfully installed on your computer.\r\n\r\n"
+                + "A Start Menu shortcut and Desktop shortcut have been created. Click Finish to exit Setup.";
+            finishedText.ForeColor = Color.FromArgb(51, 65, 85);
+            finishedText.Location = new Point(22, 64);
+            finishedText.Size = new Size(496, 60);
+            finishedPanel.Controls.Add(finishedText);
 
             launchBox.Text = "Launch DriverRadar now (it asks for administrator rights)";
             launchBox.Checked = true;
+            launchBox.Location = new Point(24, 148);
             launchBox.AutoSize = true;
-            launchBox.Location = new Point(20, 294);
-            launchBox.Visible = false;
-            Controls.Add(launchBox);
+            finishedPanel.Controls.Add(launchBox);
+        }
 
-            finishButton.Text = "Finish";
-            finishButton.Bounds = new Rectangle(330, 288, 172, 30);
-            finishButton.Visible = false;
-            finishButton.Click += delegate
+        private void ShowStep(int step)
+        {
+            currentStep = step;
+            licensePanel.Visible = (step == 1);
+            optionsPanel.Visible = (step == 2);
+            progressPanel.Visible = (step == 3);
+            finishedPanel.Visible = (step == 4);
+
+            if (step == 1)
+            {
+                backButton.Visible = true;
+                backButton.Enabled = false;
+                nextButton.Visible = true;
+                nextButton.Text = "&Next >";
+                nextButton.Enabled = rbAccept.Checked;
+                cancelButton.Visible = true;
+                cancelButton.Enabled = true;
+                AcceptButton = nextButton;
+            }
+            else if (step == 2)
+            {
+                backButton.Visible = true;
+                backButton.Enabled = true;
+                nextButton.Visible = true;
+                nextButton.Text = "&Install";
+                nextButton.Enabled = true;
+                cancelButton.Visible = true;
+                cancelButton.Enabled = true;
+                AcceptButton = nextButton;
+            }
+            else if (step == 3)
+            {
+                backButton.Visible = true;
+                backButton.Enabled = false;
+                nextButton.Visible = true;
+                nextButton.Enabled = false;
+                cancelButton.Visible = true;
+                cancelButton.Enabled = false;
+            }
+            else if (step == 4)
+            {
+                backButton.Visible = false;
+                cancelButton.Visible = false;
+                nextButton.Visible = true;
+                nextButton.Text = "&Finish";
+                nextButton.Enabled = true;
+                nextButton.Bounds = new Rectangle(440, 15, 84, 28);
+                AcceptButton = nextButton;
+            }
+        }
+
+        private void NavigateBack()
+        {
+            if (currentStep == 2)
+            {
+                ShowStep(1);
+            }
+        }
+
+        private void NavigateNext()
+        {
+            if (currentStep == 1)
+            {
+                ShowStep(2);
+            }
+            else if (currentStep == 2)
+            {
+                StartInstall();
+            }
+            else if (currentStep == 4)
             {
                 if (launchBox.Checked)
                 {
@@ -520,11 +831,7 @@ namespace DriverRadarSetup
                     Launcher.Run(target);
                 }
                 Close();
-            };
-            Controls.Add(finishButton);
-
-            AcceptButton = installButton;
-            CancelButton = closeButton;
+            }
         }
 
         private void Browse()
@@ -536,8 +843,6 @@ namespace DriverRadarSetup
                 dialog.ShowNewFolderButton = true;
                 if (dialog.ShowDialog(this) == DialogResult.OK)
                 {
-                    // Install into a DriverRadar subfolder of whatever they picked,
-                    // unless they picked one already.
                     string picked = dialog.SelectedPath;
                     pathBox.Text = string.Equals(
                         Path.GetFileName(picked.TrimEnd(Path.DirectorySeparatorChar)),
@@ -561,11 +866,11 @@ namespace DriverRadarSetup
             }
 
             busy = true;
-            SetBusy(true);
+            ShowStep(3);
 
             string status = Directory.Exists(target) && Installer.IsInstalled(target)
-                ? "Updating the existing install (downloads in data\\ are kept)\u2026"
-                : "Installing DriverRadar\u2026";
+                ? "Updating existing install (downloads in data\\ are preserved)\u2026"
+                : "Installing DriverRadar payload\u2026";
             statusLabel.Text = status;
 
             bool desktop = desktopBox.Checked;
@@ -583,39 +888,18 @@ namespace DriverRadarSetup
             });
         }
 
-        private void SetBusy(bool value)
-        {
-            pathBox.Enabled = !value;
-            browseButton.Enabled = !value;
-            desktopBox.Enabled = !value;
-            installButton.Enabled = !value;
-            closeButton.Enabled = !value;
-            progress.MarqueeAnimationSpeed = value ? 30 : 0;
-        }
-
         private void ShowFinished()
         {
             busy = false;
             progress.MarqueeAnimationSpeed = 0;
-            statusLabel.Text = "DriverRadar " + BuildInfo.Version + " is installed.";
-            statusLabel.ForeColor = Color.FromArgb(21, 128, 61);
-
-            headline.Text = "You are all set";
-            installButton.Visible = false;
-            closeButton.Visible = false;
-            launchBox.Visible = true;
-            finishButton.Visible = true;
-            AcceptButton = finishButton;
-            CancelButton = null;
+            ShowStep(4);
         }
 
         private void ShowFailed(Exception ex)
         {
             busy = false;
-            SetBusy(false);
             progress.MarqueeAnimationSpeed = 0;
-            statusLabel.Text = "Install failed.";
-            statusLabel.ForeColor = Color.FromArgb(185, 28, 28);
+            ShowStep(2);
 
             MessageBox.Show(
                 "DriverRadar could not be installed.\n\n" + ex.Message,

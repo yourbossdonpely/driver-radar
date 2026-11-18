@@ -673,6 +673,88 @@
     }
   }
 
+  async function openRestore() {
+    let data;
+    try {
+      data = await api('/api/backups');
+    } catch (err) {
+      toast(err.message || 'Could not read the driver backups.', 'bad');
+      return;
+    }
+
+    const backups = data?.backups || [];
+    const list = $('#restoreList');
+    const ok = $('#restoreOk');
+
+    if (!backups.length) {
+      $('#restoreBody').textContent =
+        'No snapshots yet. Leave “Back up the current drivers first” enabled when you update a driver and a snapshot will appear here.';
+      list.innerHTML = '';
+      list.hidden = true;
+      ok.disabled = true;
+    } else {
+      $('#restoreBody').textContent =
+        'Reinstall every package from one snapshot with pnputil /add-driver. A restart may be required.';
+      list.hidden = false;
+      ok.disabled = false;
+      list.innerHTML = backups
+        .map(
+          (b, index) => `
+          <li>
+            <label class="backup-option">
+              <input type="radio" name="backup" value="${esc(b.id)}" ${index === 0 ? 'checked' : ''} />
+              <span>${esc(fmtDate(String(b.createdAt || '').slice(0, 10)))} · ${b.packages} package${b.packages === 1 ? '' : 's'}</span>
+              <b>${esc(fmtBytes(b.sizeBytes))}</b>
+            </label>
+          </li>`,
+        )
+        .join('');
+    }
+
+    const dialog = $('#restoreDialog');
+    const picked = await new Promise((resolve) => {
+      const onClose = () => {
+        dialog.removeEventListener('close', onClose);
+        resolve(dialog.returnValue === 'ok');
+      };
+      dialog.addEventListener('close', onClose);
+      dialog.returnValue = 'cancel';
+      dialog.showModal();
+    });
+    if (!picked) return;
+
+    const id = list.querySelector('input[name="backup"]:checked')?.value;
+    const chosen = backups.find((b) => b.id === id);
+    if (!chosen) return;
+
+    if (!app.admin) {
+      promptElevate();
+      return;
+    }
+
+    const confirm = await ask({
+      title: 'Restore driver backup',
+      body: `${chosen.packages} driver package${chosen.packages === 1 ? '' : 's'} from ${chosen.id} will be reinstalled with pnputil. A restart may be required.`,
+      okLabel: 'Restore now',
+    });
+    if (!confirm.ok) return;
+
+    try {
+      const res = await api('/api/restore', { method: 'POST', body: { id } });
+      if (res.error === 'admin') {
+        promptElevate();
+        return;
+      }
+      if (res.error) throw new Error(res.message || res.error);
+      app.jobId = res.job.id;
+      renderJob(res.job);
+      toast('Restore started.', 'good');
+    } catch (err) {
+      if (err.status === 409) promptElevate();
+      else toast(err.message || 'Could not start the restore.', 'bad');
+    }
+  }
+
   async function promptElevate() {
     const answer = await ask({
       title: 'Administrator rights required',
@@ -696,12 +778,17 @@
     const running = job.status === 'running';
     const stats = job.totals || { bytes: 0, downloaded: 0, speed: 0 };
 
+    const isRestore = job.mode === 'restore';
     panel.hidden = false;
     $('#jobKicker').textContent = running ? 'Live job' : job.status.toUpperCase();
     $('#jobTitle').textContent = running
-      ? `${job.install ? 'Updating' : 'Downloading'} ${job.items.length} package${job.items.length === 1 ? '' : 's'}`
+      ? isRestore
+        ? 'Restoring a driver backup'
+        : `${job.install ? 'Updating' : 'Downloading'} ${job.items.length} package${job.items.length === 1 ? '' : 's'}`
       : job.status === 'done'
-        ? 'All packages finished'
+        ? isRestore
+          ? 'Backup restored'
+          : 'All packages finished'
         : job.status === 'partial'
           ? 'Finished with errors'
           : job.status === 'cancelled'
@@ -845,6 +932,8 @@
     $('#adminPill').addEventListener('click', () => {
       if (!app.admin) promptElevate();
     });
+
+    $('#restoreBtn').addEventListener('click', openRestore);
 
     $('#offlineRetry').addEventListener('click', async () => {
       const ok = await probeServer();

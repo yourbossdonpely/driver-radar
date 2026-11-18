@@ -9,12 +9,13 @@ const { spawn } = require('node:child_process');
 const bus = require('./lib/bus');
 const scan = require('./lib/scan');
 const jobs = require('./lib/jobs');
+const backup = require('./lib/backup');
 const { checkAdmin, isAdminSync } = require('./lib/admin');
 
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const PORT = Number(process.env.PORT || 7788);
-const VERSION = '1.2.1';
+const VERSION = '1.3.0';
 
 // A dead local server looks like "Failed to fetch" in the browser, so log any
 // stray error and keep serving instead of exiting silently.
@@ -178,6 +179,20 @@ async function handleApi(req, res, url) {
       backup: body.backup,
     });
     return json(res, result.error ? 409 : 200, result);
+  }
+
+  if (req.method === 'GET' && pathname === '/api/backups') {
+    return json(res, 200, { dir: backup.BACKUP_DIR, backups: await backup.listBackups() });
+  }
+
+  if (req.method === 'POST' && pathname === '/api/restore') {
+    const body = await readBody(req);
+    const dir = backup.resolveBackup(body.id);
+    if (!dir) return json(res, 400, { error: 'Unknown backup.' });
+    const result = await jobs.startRestore({ dir });
+    if (result.error === 'admin') return json(res, 409, result);
+    if (result.error) return json(res, 400, result);
+    return json(res, 200, result);
   }
 
   if (req.method === 'POST' && pathname === '/api/cancel') {

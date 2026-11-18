@@ -43,21 +43,43 @@ the gap:
 | | |
 |---|---|
 | OS | Windows 10 or Windows 11 (x64 or ARM64) |
-| Runtime | [Node.js 20+](https://nodejs.org/) (LTS is fine) |
+| Runtime | [Node.js 20+](https://nodejs.org/) — **installed automatically on first run** |
 | PowerShell | 5.1 — included with Windows |
 | Rights | Administrator for installing drivers (scanning works without) |
 | Disk | ~50 MB for the app, plus downloaded packages |
 
 ### Install from a release
 
-1. Download `DriverRadar-1.0.0.zip` from **Releases**.
+1. Download `DriverRadar-1.1.0.zip` from **Releases**.
 2. Extract it anywhere (for example `C:\Tools\DriverRadar`). Avoid `Program Files` — the
    app writes downloads next to itself.
 3. Double-click **`start.cmd`**.
 
-`start.cmd` finds Node.js, asks for administrator rights **before** the app opens, starts
-the local server on `http://127.0.0.1:7788`, and opens your browser. If Node.js is missing
-and `winget` is available, it offers to install Node LTS for you.
+That is the whole install. `start.cmd` asks for administrator rights **before** the app
+opens, installs Node.js if the machine has no usable runtime, starts the local server on
+`http://127.0.0.1:7788`, and opens your browser.
+
+### First run on a clean PC
+
+A brand-new Windows install has no Node.js, so there is nothing that can run the app yet.
+`start.cmd` handles that itself — you do not install anything by hand:
+
+1. It elevates first, because both driver installs and the Node.js install need it.
+2. It looks for an existing Node 20+ runtime (PATH, `Program Files\nodejs`, per-user
+   installs).
+3. If none is found, it installs the official LTS build **silently** — through `winget`
+   when available, otherwise by downloading the signed MSI from
+   `https://nodejs.org/dist/…` for the machine's CPU (x64, ARM64 or x86).
+4. It records the resolved path in `data\node-path.txt` and starts the app.
+
+No prompts, no browser trip, no "install Node and come back". The only requirement is an
+internet connection. If the install cannot happen — offline PC, or `winget`/Windows
+Installer blocked by policy — the launcher stops with a plain-language message and the
+details in `data\bootstrap.log`, instead of failing later with a stack trace.
+
+`requirements.txt` documents everything the app expects from Windows, so a machine that
+misbehaves can be checked line by line. There are no package dependencies to install: the
+app is plain Node core.
 
 > The server only listens on `127.0.0.1`. There is no cloud component, no account, and no
 > telemetry.
@@ -200,8 +222,10 @@ DriverRadar has no machine-specific assumptions:
 - **No OEM software required.** Where a vendor blocks scripted access (Intel and some OEM
   pages return 403), the catalog carries the same WHQL packages Microsoft distributes.
 
-Tested on Windows 11 (build 26300) x64 with 246 devices. Windows 10 and ARM64 are supported
-by design; reports from those machines are very welcome.
+Tested on Windows 11 (build 26300) x64 with 246 devices, and on a clean Windows Sandbox —
+no Node.js, no `winget` — where `start.cmd` installed the runtime by itself and served the
+app. Windows 10 and ARM64 are supported by design; reports from those machines are very
+welcome.
 
 ## Troubleshooting
 
@@ -209,7 +233,7 @@ by design; reports from those machines are very welcome.
 |---|---|
 | "The local server stopped" banner | The supervisor restarts the server automatically; press **Retry now** or wait a few seconds. If it stays down, rerun `start.cmd`. |
 | `Failed to fetch` when starting a job | The server process is gone. `start.cmd` + `supervisor.js` keep it alive; restart the launcher once. |
-| "Node.js was not found" | Install Node 20+ from [nodejs.org](https://nodejs.org/), or let `start.cmd` install it with `winget`. |
+| "Could not prepare Node.js" | The one-time install needs internet. Check the connection and rerun `start.cmd`; details are in `data\bootstrap.log`. Last resort: install the LTS MSI from [nodejs.org](https://nodejs.org/) manually. |
 | Pill says **Standard user** | The app was started without elevation. Close it and run `start.cmd` again — it elevates before opening. |
 | No updates found | The machine may already be current. Check the **Problems** tab and the notes under the list; OEM builds can be newer than the public catalog. |
 | Port 7788 already in use | Another instance is running. `start.cmd` reuses it (and restarts it elevated if needed). |
@@ -222,7 +246,8 @@ driver-radar/
 ├─ server.js              HTTP server, static files, JSON API, SSE
 ├─ supervisor.js          keeps the server alive, restarts it after a crash
 ├─ cli.js                 terminal front end
-├─ start.cmd              launcher: finds Node, elevates, opens the browser
+├─ start.cmd              launcher: elevates, installs Node, opens the browser
+├─ requirements.txt       what the app needs from Windows (no packages)
 │
 ├─ lib/
 │  ├─ scan.js             inventory → sources → merge → grouped rows
@@ -236,7 +261,8 @@ driver-radar/
 │  ├─ bus.js              SSE fan-out
 │  └─ util.js             version compare, formatting, bounded concurrency
 │
-├─ scripts/               inventory, WU search/install, pnputil, restore point
+├─ scripts/               inventory, WU search/install, pnputil, restore point,
+│                         bootstrap (installs Node.js on first run)
 ├─ public/                UI (HTML, CSS, JS — no build step)
 ├─ docs/                  screenshots
 └─ data/                  runtime cache + downloads (git-ignored)
@@ -246,6 +272,9 @@ driver-radar/
 
 - **Zero dependencies.** Everything is Node core, PowerShell and Windows. No supply chain,
   no `npm install`, no build step.
+- **Bootstraps itself.** The one thing the app genuinely needs — a Node runtime — is
+  installed by `start.cmd` on first launch, so a fresh Windows install works without the
+  user reading a README first.
 - **Local web UI.** A browser is the most portable UI on Windows and lets the app stream
   progress over SSE without a native toolkit.
 - **A supervisor process.** The browser cannot start a process, so a small Node supervisor

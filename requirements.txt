@@ -1,0 +1,43 @@
+# DriverRadar runtime requirements
+#
+# DriverRadar has no package dependencies: there is nothing to `pip install`
+# and nothing to `npm install`. Everything below is either part of Windows or
+# installed automatically by start.cmd on the first run.
+#
+# You do not normally need to read or edit this file. It documents what the app
+# uses so that a failing machine can be diagnosed quickly.
+
+[windows]
+minimum = Windows 10 build 1809 (x64) or Windows 11 (ARM64)
+# Check: winver  or  [Environment]::OSVersion
+
+[nodejs]
+minimum = 20
+# Installed automatically by start.cmd -> scripts/bootstrap.ps1
+# Order: existing install, then winget (OpenJS.NodeJS.LTS), then the official
+# nodejs.org MSI for the CPU architecture. No manual step is required.
+# Check: node --version
+
+[powershell]
+minimum = 5.1
+# Ships with Windows 10 and 11; used for the device inventory, driver
+# installation and the restore point.
+# Check: $PSVersionTable.PSVersion
+
+[windows-components]
+# Shipped with Windows, nothing to install:
+Get-PnpDevice          # device inventory (PnpDevice module)
+pnputil.exe            # INF/CAB driver installation
+Microsoft.Update.Session  # Windows Update driver search (COM)
+Checkpoint-Computer    # optional System Restore point
+
+[permissions]
+# Administrator: required for installing drivers and for the first-run Node.js
+# install. start.cmd requests elevation before doing anything else.
+# Port 7788 on 127.0.0.1 is used by the local server.
+
+[network]
+# Needed at runtime, not at install time:
+nodejs.org               # first-run Node.js install
+www.catalog.update.microsoft.com  # driver packages
+api.nvidia.com           # NVIDIA driver lookup, when a GPU is present

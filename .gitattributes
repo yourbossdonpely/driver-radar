@@ -1,0 +1,12 @@
+* text=auto
+
+# Batch files are read by byte offset; keep CRLF so goto/labels behave on any Windows.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.css text eol=lf
+*.html text eol=lf

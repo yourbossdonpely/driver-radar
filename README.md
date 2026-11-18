@@ -52,14 +52,14 @@ the gap:
 
 **Installer (recommended)**
 
-1. Download `DriverRadar-1.3.2-Setup.exe` from
+1. Download `DriverRadar-1.3.3-Setup.exe` from
    [**Releases**](https://github.com/yourbossdonpely/driver-radar/releases/latest).
-2. Run it and press **Install**. Setup needs no administrator rights: it installs for your
+2. Run it and complete the setup wizard (accept the agreement, select destination, and click **Install**). Setup needs no administrator rights: it installs for your
    account in `%LOCALAPPDATA%\DriverRadar`, adds Start Menu and Desktop shortcuts, and
    registers DriverRadar in **Apps & features** so it uninstalls like any other app.
-3. Launch **DriverRadar** from the Start Menu.
+3. Launch **DriverRadar** from the Start Menu or directly from Setup.
 
-It is one 0.4 MB file with no dependencies — the app and its icon are inside — and it keeps
+It is one 0.4 MB file with no dependencies — the app, official icon, and license are inside — and it keeps
 `data\` (downloads, backups) when you install a newer version over it.
 
 The installer only unpacks the app; `start.cmd` still does the first-run work, so the
@@ -67,7 +67,7 @@ paragraph after the ZIP option below applies either way.
 
 **Portable ZIP**
 
-1. Download `DriverRadar-1.3.2.zip` from
+1. Download `DriverRadar-1.3.3.zip` from
    [**Releases**](https://github.com/yourbossdonpely/driver-radar/releases/latest).
 2. Extract it anywhere (for example `C:\Tools\DriverRadar`). Avoid `Program Files` — the
    app writes downloads next to itself.
@@ -392,28 +392,46 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\publish.ps1
 from `data\release-notes-<version>.md` (git-ignored). Requires an authenticated `gh`.
 
 A release carries two assets: the portable `DriverRadar-<version>.zip` and the
-`DriverRadar-<version>-Setup.exe` installer.
+  `DriverRadar-<version>-Setup.exe` installer.
 
-### The installer
+  ### The installer
 
-```bat
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-installer.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-installer.ps1 -Commit 6be33a3
-```
+  ```bat
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-installer.ps1
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-installer.ps1 -Commit 6be33a3
+  ```
 
-Writes `dist\DriverRadar-<version>-Setup.exe`. It is C# (`installer\setup.cs`) compiled with
-the .NET Framework `csc.exe` that ships with Windows, with the app embedded as a ZIP
-resource — no Inno Setup, no NSIS, no downloads, and the same version guard as the publish
-script. The EXE behaves as its own launcher and uninstaller:
+  Writes `dist\DriverRadar-<version>-Setup.exe`. It is C# (`installer\setup.cs`) compiled with
+  the .NET Framework `csc.exe` that ships with Windows, with the app embedded as a ZIP
+  resource — no Inno Setup, no NSIS, no downloads, and the same version guard as the publish
+  script. The EXE behaves as its own launcher and uninstaller:
 
-| Invocation | Effect |
-|---|---|
-| `DriverRadar-<version>-Setup.exe` | setup wizard (folder, shortcuts, progress, finish) |
-| `… -Setup.exe --silent` | same install, no UI |
-| `… -Setup.exe --extract <dir>` | unpack the payload only (used to verify a build) |
-| `<install>\DriverRadar.exe --uninstall [--silent]` | remove the app, shortcuts and its registry entry |
+  | Invocation | Effect |
+  |---|---|
+  | `DriverRadar-<version>-Setup.exe` | setup wizard (folder, shortcuts, progress, finish) |
+  | `… -Setup.exe --silent` | same install, no UI |
+  | `… -Setup.exe --extract <dir>` | unpack the payload only (used to verify a build) |
+  | `<install>\DriverRadar.exe --uninstall [--silent]` | remove the app, shortcuts and its registry entry |
 
-### npm
+  The wizard guides the user through standard Windows setup steps:
+  1. **License Agreement**: Shows the MIT License terms and requires **I accept the agreement** before continuing.
+  2. **Destination & Shortcuts**: Configures install path (default `%LOCALAPPDATA%\DriverRadar`, no admin required) with **Browse…**, Desktop shortcut toggle, and developer info (`yourbossdonpely`).
+  3. **Installation**: Displays a progress bar while extracting files, creating shortcuts, and registering the app.
+  4. **Completion**: Offers a **Launch DriverRadar now** checkbox and **Finish** button.
+
+  The application icon is `appicon.png`, embedded directly into the EXE, header panel, shortcuts, and **Apps & features**.
+
+  **Signing.** After compilation the build signs the EXE with `signtool.exe` using the
+  code-signing certificate in `driverradar.pfx` (password `DriverRadar2026!`), hashed with
+  SHA256 and stamped at `http://timestamp.digicert.com`. The certificate subject is
+  `CN=yourbossdonpely, O=DriverRadar`. If needed, `scripts\ensure-cert.ps1` creates the PFX
+  and imports the certificate into the CurrentUser `TrustedPublisher` store. Verify a build with:
+
+  ```bat
+  Get-AuthenticodeSignature -FilePath dist\DriverRadar-1.3.3-Setup.exe
+  ```
+
+  ### npm
 
 `package.json` exposes `cli.js` as a `bin` and a `files` allowlist, so the package is
 installable without a clone:

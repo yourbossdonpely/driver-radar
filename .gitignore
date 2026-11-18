@@ -12,3 +12,7 @@ node_modules/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Code-signing certificates (kept out of the repo; the build reads it from disk)
+driverradar.pfx
+driverradar.cer

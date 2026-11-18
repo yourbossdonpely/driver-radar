@@ -2,12 +2,12 @@
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\publish.ps1
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\publish.ps1 -DryRun
-#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 1.2.2
+#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\publish.ps1 -Version 1.3.3
 #
 # The version comes from package.json, so the tag, the asset and the version the
-# app reports in /api/health can never drift apart. Build the asset first so the
-# ZIP mirrors the committed tree:
+# app reports in /api/health can never drift apart. Build the assets first:
 #   git archive --format=zip -o dist\DriverRadar-<version>.zip --prefix=DriverRadar-<version>/ HEAD
+#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-installer.ps1
 #
 # Release notes are read from data\release-notes-<version>.md (git-ignored, like
 # the rest of data\). Paths are resolved from the repository root, so the script
@@ -57,17 +57,25 @@ if ($serverVersion -and $serverVersion -ne $Version) {
 
 $tag = "v$Version"
 $zip = Join-Path $Root "dist\DriverRadar-$Version.zip"
+$exe = Join-Path $Root "dist\DriverRadar-$Version-Setup.exe"
 if (-not $Notes) { $Notes = Join-Path $Root "data\release-notes-$Version.md" }
 else { $Notes = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Notes) }
 
 Set-Location $Root
 
+$assets = @($zip)
+if (Test-Path -LiteralPath $exe) {
+  $assets += $exe
+}
+
 if ($DryRun) {
   [pscustomobject]@{
     version        = $Version
     tag            = $tag
-    asset          = $zip
-    assetBuilt     = (Test-Path -LiteralPath $zip)
+    zip            = $zip
+    zipBuilt       = (Test-Path -LiteralPath $zip)
+    exe            = $exe
+    exeBuilt       = (Test-Path -LiteralPath $exe)
     notes          = $Notes
     notesAvailable = (Test-Path -LiteralPath $Notes)
   } | Format-List
@@ -92,11 +100,14 @@ git push -u origin main
 if ($LASTEXITCODE -ne 0) { throw 'git push failed' }
 
 if (Test-Quiet { gh release view $tag --repo $Repo }) {
-  # Re-running for the same version replaces the asset instead of failing.
-  gh release upload $tag $zip --repo $Repo --clobber
-  if ($LASTEXITCODE -ne 0) { throw 'release upload failed' }
+  # Re-running for the same version replaces the assets instead of failing.
+  foreach ($asset in $assets) {
+    gh release upload $tag $asset --repo $Repo --clobber
+    if ($LASTEXITCODE -ne 0) { throw "release upload failed for $asset" }
+  }
 } else {
-  gh release create $tag $zip --repo $Repo --title "DriverRadar $Version" --notes-file $Notes
+  $createArgs = @('release', 'create', $tag) + $assets + @('--repo', $Repo, '--title', "DriverRadar $Version", '--notes-file', $Notes)
+  & gh $createArgs
   if ($LASTEXITCODE -ne 0) { throw 'release create failed' }
 }
 

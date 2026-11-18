@@ -22,16 +22,40 @@ Thanks for helping make driver updates less painful.
 
 ## Development
 
-```bat
-node cli.js scan      :: terminal scan
-node server.js        :: UI on http://127.0.0.1:7788
-node supervisor.js    :: keeps the server alive while you work
-```
+  ```bat
+  node cli.js scan      :: terminal scan
+  node server.js        :: UI on http://127.0.0.1:7788
+  node supervisor.js    :: keeps the server alive while you work
+  ```
 
-There is no build step and no test runner. `node --check <file>` catches syntax errors;
-the live scan is the integration test.
+  There is no build step and no test runner. `node --check <file>` catches syntax errors;
+  the live scan is the integration test.
 
-## Pull requests
+  ### Building the Windows installer
+
+  ```bat
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-installer.ps1
+  ```
+
+  Produces `dist\DriverRadar-<version>-Setup.exe`. It compiles `installer/setup.cs` with the
+  .NET Framework `csc.exe` that ships with Windows, embeds the app as a ZIP resource, and
+  signs the result with `signtool.exe` using `driverradar.pfx`. The PFX lives next to the
+  repo (git-ignored); `scripts\ensure-cert.ps1` creates and trusts it automatically.
+  Verify the signature with `Get-AuthenticodeSignature -FilePath dist\DriverRadar-<version>-Setup.exe`.
+
+  ### Releasing
+
+  1. Bump the version in `package.json` and `server.js` (they must agree).
+  2. Build the ZIP: `git archive --format=zip -o dist\DriverRadar-<version>.zip --prefix=DriverRadar-<version>/ HEAD`
+  3. Build the installer: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-installer.ps1`
+  4. Write release notes in `data\release-notes-<version>.md` (git-ignored).
+  5. Publish: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\publish.ps1`
+
+  The publish script pushes to `main`, creates or updates the `v<version>` GitHub release,
+  and uploads the ZIP. The EXE is uploaded by the same script when present in `dist\`.
+  Requires an authenticated `gh` (`gh auth login`).
+
+  ## Pull requests
 
 1. Fork the repo and create a topic branch.
 2. Describe what machine/OS you tested on.

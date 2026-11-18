@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>DriverRadar</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css?v=4" />
+  </head>
+  <body>
+    <div class="ambient" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
+
+    <div class="offline-banner" id="offlineBanner" role="alert" hidden>
+      <span class="offline-dot" aria-hidden="true"></span>
+      <span class="offline-text">
+        The local server stopped. Run <code>start.cmd</code> again — this page reconnects automatically.
+      </span>
+      <button class="btn ghost small" id="offlineRetry">Retry now</button>
+    </div>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="6" y="6" width="12" height="12" rx="2.5" />
+            <path d="M9.5 3v3M14.5 3v3M9.5 18v3M14.5 18v3M3 9.5h3M3 14.5h3M18 9.5h3M18 14.5h3" />
+            <circle cx="12" cy="12" r="2.4" />
+          </svg>
+        </span>
+        <div class="brand-text">
+          <h1>DriverRadar</h1>
+          <p>Local hardware maintenance</p>
+        </div>
+      </div>
+
+      <div class="topbar-meta">
+        <span class="pill pill-ghost" id="systemPill" title="Detected system">—</span>
+        <span class="pill" id="adminPill" title="Elevation status">
+          <span class="dot"></span><span id="adminText">Checking</span>
+        </span>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <button id="scanBtn" class="scan-orb" aria-label="Scan this computer for driver updates">
+          <span class="orb-glow" aria-hidden="true"></span>
+          <span class="orb-ring ring-1" aria-hidden="true"></span>
+          <span class="orb-ring ring-2" aria-hidden="true"></span>
+          <span class="orb-sweep" aria-hidden="true"></span>
+          <span class="orb-core">
+            <span class="orb-icon" id="orbIcon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+                <path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16" />
+                <path d="M8.5 12h7M12 8.5v7" class="plus" />
+              </svg>
+            </span>
+            <span class="orb-percent" id="orbPercent">0%</span>
+            <span class="orb-label" id="orbLabel">SCAN</span>
+          </span>
+        </button>
+
+        <div class="hero-copy">
+          <p class="eyebrow">Windows Update · Microsoft Update Catalog · NVIDIA</p>
+          <h2 id="heroTitle">Ready when you are.</h2>
+          <p class="hero-sub" id="heroSub">
+            Reads every device, compares installed versions against the public driver
+            catalog and downloads the newest packages over parallel connections.
+          </p>
+          <div class="scan-readout">
+            <span class="readout-dot" id="readoutDot"></span>
+            <span id="stageText">Idle</span>
+            <span class="readout-time" id="stageTime"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="stats" id="stats" aria-label="Scan summary">
+        <article class="stat">
+          <span class="stat-label">Devices</span>
+          <strong class="stat-value" id="statDevices">—</strong>
+          <span class="stat-foot" id="statDevicesFoot">Not scanned</span>
+        </article>
+        <article class="stat stat-accent">
+          <span class="stat-label">Updates</span>
+          <strong class="stat-value" id="statUpdates">—</strong>
+          <span class="stat-foot" id="statUpdatesFoot">Awaiting scan</span>
+        </article>
+        <article class="stat stat-warn">
+          <span class="stat-label">Problems</span>
+          <strong class="stat-value" id="statProblems">—</strong>
+          <span class="stat-foot" id="statProblemsFoot">Device health</span>
+        </article>
+        <article class="stat">
+          <span class="stat-label">Up to date</span>
+          <strong class="stat-value" id="statCurrent">—</strong>
+          <span class="stat-foot" id="statCurrentFoot">Latest versions</span>
+        </article>
+      </section>
+
+      <section class="notes hidden" id="notes" aria-live="polite"></section>
+
+      <section class="toolbar">
+        <div class="toolbar-left">
+          <div class="tabs" role="tablist" aria-label="Filter devices">
+            <button class="tab is-active" data-filter="all" role="tab" aria-selected="true">
+              All <em id="countAll">0</em>
+            </button>
+            <button class="tab" data-filter="update" role="tab" aria-selected="false">
+              Updates <em id="countUpdate">0</em>
+            </button>
+            <button class="tab" data-filter="problem" role="tab" aria-selected="false">
+              Problems <em id="countProblem">0</em>
+            </button>
+            <button class="tab" data-filter="current" role="tab" aria-selected="false">
+              Up to date <em id="countCurrent">0</em>
+            </button>
+          </div>
+          <button class="btn ghost small" id="selectAll" hidden>Select all updates</button>
+        </div>
+        <label class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.5" />
+            <path d="m16 16 4 4" />
+          </svg>
+          <input id="search" type="search" placeholder="Filter by device, class or hardware ID…" autocomplete="off" />
+        </label>
+      </section>
+
+      <div class="list-head" id="listHead" aria-hidden="true">
+        <span>Device</span>
+        <span>Installed</span>
+        <span>Available</span>
+        <span>Status</span>
+      </div>
+
+      <section class="device-list" id="deviceList" aria-live="polite"></section>
+
+      <section class="empty" id="emptyState">
+        <div class="empty-art" aria-hidden="true">
+          <svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="1">
+            <circle cx="60" cy="60" r="46" opacity=".25" />
+            <circle cx="60" cy="60" r="32" opacity=".4" stroke-dasharray="3 6" />
+            <rect x="48" y="48" width="24" height="24" rx="4" opacity=".8" />
+            <path d="M58 60h4M60 58v4" opacity=".8" />
+          </svg>
+        </div>
+        <h3 id="emptyTitle">No scan yet</h3>
+        <p id="emptyText">Press SCAN to inventory this machine and check every driver against the public catalog.</p>
+      </section>
+    </main>
+
+    <div class="action-bar" id="actionBar" hidden>
+      <div class="action-info">
+        <strong id="selCount">0</strong>
+        <span>selected</span>
+        <span class="action-size" id="selSize">0 B</span>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="restorePoint" checked />
+        <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+        <span class="toggle-text">Restore point</span>
+      </label>
+      <label class="connections">
+        <span>Connections</span>
+        <select id="partsSelect">
+          <option value="8">8</option>
+          <option value="12">12</option>
+          <option value="16" selected>16</option>
+        </select>
+      </label>
+      <button class="btn ghost" id="downloadBtn">Download only</button>
+      <button class="btn primary" id="installBtn">Update selected</button>
+    </div>
+
+    <aside class="job-panel" id="jobPanel" hidden aria-live="polite">
+      <header class="job-head">
+        <div>
+          <p class="job-kicker" id="jobKicker">Job</p>
+          <h3 id="jobTitle">Preparing…</h3>
+        </div>
+        <button class="icon-btn" id="jobClose" aria-label="Close job panel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </header>
+      <div class="job-totals">
+        <span id="jobSpeed">0 B/s</span>
+        <span id="jobBytes">0 B / 0 B</span>
+      </div>
+      <div class="job-items" id="jobItems"></div>
+      <footer class="job-foot">
+        <button class="btn ghost small" id="jobCancel">Cancel</button>
+        <button class="btn primary small hidden" id="jobRescan">Rescan</button>
+        <button class="btn ghost small" id="jobFolder">Open folder</button>
+      </footer>
+    </aside>
+
+    <dialog class="modal" id="confirm">
+      <form method="dialog" class="modal-card">
+        <p class="modal-kicker">Confirm</p>
+        <h3 id="confirmTitle">Update drivers</h3>
+        <p class="modal-body" id="confirmBody"></p>
+        <ul class="modal-list" id="confirmList"></ul>
+        <label class="toggle modal-toggle">
+          <input type="checkbox" id="confirmRestore" checked />
+          <span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span>
+          <span class="toggle-text">Create a restore point first</span>
+        </label>
+        <div class="modal-actions">
+          <button value="cancel" class="btn ghost">Cancel</button>
+          <button value="ok" class="btn primary" id="confirmOk">Start</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="/app.js?v=4"></script>
+  </body>
+</html>

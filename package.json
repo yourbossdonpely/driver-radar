@@ -1,0 +1,27 @@
+{
+  "name": "driver-radar",
+  "version": "1.0.0",
+  "private": false,
+  "description": "Open-source Windows driver scanner and updater: verifies packages against the Microsoft Update Catalog and downloads them over parallel connections.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node supervisor.js --open",
+    "serve": "node server.js",
+    "supervise": "node supervisor.js",
+    "scan": "node cli.js scan",
+    "list": "node cli.js list"
+  },
+  "keywords": [
+    "windows",
+    "drivers",
+    "driver-updater",
+    "microsoft-update-catalog",
+    "windows-update",
+    "pnputil",
+    "powershell"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

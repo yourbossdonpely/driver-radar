@@ -46,11 +46,12 @@ the gap:
 | Runtime | [Node.js 20+](https://nodejs.org/) — **installed automatically on first run** |
 | PowerShell | 5.1 — included with Windows |
 | Rights | Administrator for installing drivers (scanning works without) |
-| Disk | ~50 MB for the app, plus downloaded packages |
+| Disk | about 1 MB for the app (the release ZIP is 0.3 MB), plus downloaded packages |
 
 ### Install from a release
 
-1. Download `DriverRadar-1.1.0.zip` from **Releases**.
+1. Download `DriverRadar-1.1.0.zip` from
+   [**Releases**](https://github.com/yourbossdonpely/driver-radar/releases/latest).
 2. Extract it anywhere (for example `C:\Tools\DriverRadar`). Avoid `Program Files` — the
    app writes downloads next to itself.
 3. Double-click **`start.cmd`**.
@@ -87,16 +88,22 @@ app is plain Node core.
 ### Run from source
 
 ```bat
-git clone <repository-url>
+git clone https://github.com/yourbossdonpely/driver-radar.git
 cd driver-radar
 start.cmd
 ```
 
-Or without the launcher:
+That path works like a release: `start.cmd` elevates, installs Node.js if it is missing,
+and opens the browser. With `npm` you can also run it directly:
 
 ```bat
-node supervisor.js --open
+npm start               :: same as start.cmd, minus the elevation prompt
+node supervisor.js      :: server with crash supervision
+node server.js          :: just the server, no supervisor
 ```
+
+Running this way needs Node.js 20+ already installed — `start.cmd` is what handles a
+machine without it. The repository has no dependencies, so there is no `npm install` step.
 
 ## Using it
 
@@ -107,8 +114,8 @@ node supervisor.js --open
 4. Tick the updates you want, choose **16 connections**, and press **Update selected** —
    or **Download only** to keep the files without installing.
 
-Every install creates an optional System Restore point first and reports whether a reboot
-is required. Firmware/BIOS packages are intentionally excluded.
+An optional System Restore point (on by default) is created before the first install, and the
+job reports whether a reboot is required. Firmware/BIOS packages are intentionally excluded.
 
 ### Command line
 
@@ -171,8 +178,8 @@ Catalog search is full-text. A query for `ACPI\VEN_INTC&DEV_1062` can return a p
 that has nothing to do with that device. DriverRadar therefore fetches
 `ScopedViewInline.aspx?updateid=…` for every candidate and compares the package's
 `Supported Hardware IDs` with the device's IDs (ignoring `&REV_`, case, and matching
-`VEN/DEV` + `SUBSYS` pairs). On the test machine this rejects four false candidates per
-scan and leaves three genuine updates.
+`VEN/DEV` + `SUBSYS` pairs). In one scan on the test machine this skipped packages for four
+devices and left three genuine updates.
 
 ### Version comparison
 
@@ -185,11 +192,13 @@ installed build is shown as **"Newer"**, never as an update. No downgrades.
 - **Persisted last scan** — the UI paints the previous result instantly on startup.
 - **Cached catalog lookups** — searches and detail pages are cached for 12 hours.
 - **Parallel, cached queries** — eight catalog lookups at a time.
-- **Multi-part downloads** — 16 range requests by default (1 MB minimum shard), resumable
-  per shard, with an EMA speed display. Measured on the Microsoft CDN: a 35.8 MB package
-  took 17.5 s with 8 streams and **7.4 s with 16** (≈4.8 MB/s).
-- **Parallel packages** — two packages download while installs stay sequential, so
-  `pnputil` and vendor setup programs never race.
+- **Multi-part downloads** — 16 range requests in the UI by default (12 if the API omits
+  `parts`), 1 MB minimum shard, resumable per shard, with an EMA speed display. Measured on
+  the Microsoft CDN: a 35.8 MB package took 17.5 s with 8 streams and **7.4 s with 16**
+  (≈4.8 MB/s).
+- **Parallel packages** — two packages download at once while installing (three for
+  download-only), and installs themselves stay sequential, so `pnputil` and vendor setup
+  programs never race.
 
 ## Safety model
 
@@ -222,10 +231,10 @@ DriverRadar has no machine-specific assumptions:
 - **No OEM software required.** Where a vendor blocks scripted access (Intel and some OEM
   pages return 403), the catalog carries the same WHQL packages Microsoft distributes.
 
-Tested on Windows 11 (build 26300) x64 with 246 devices, and on a clean Windows Sandbox —
-no Node.js, no `winget` — where `start.cmd` installed the runtime by itself and served the
-app. Windows 10 and ARM64 are supported by design; reports from those machines are very
-welcome.
+Tested on Windows 11 (build 26300) x64 — 157 rows covering 248 device instances — and on a
+clean Windows Sandbox with no Node.js and no `winget`, where `start.cmd` installed the
+runtime by itself and served the app. Windows 10 and ARM64 are supported by design; reports
+from those machines are very welcome.
 
 ## Troubleshooting
 

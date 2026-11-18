@@ -297,7 +297,7 @@ driver-radar/
 │
 ├─ scripts/               inventory, WU search/install, pnputil, restore point,
 │                         driver backup export, bootstrap (installs Node.js
-│                         on first run)
+│                         on first run), publish (release to GitHub)
 ├─ public/                UI (HTML, CSS, JS — no build step)
 ├─ docs/                  screenshots
 └─ data/                  runtime cache + downloads (git-ignored)
@@ -351,6 +351,20 @@ version is newer. The INF is checked again after extraction, and `pnputil` enfor
 **Does it work on Windows 10 / ARM64?**
 Yes by design: device matching is hardware-ID based and the app has no x64-only code. The
 test machine is Windows 11 x64; other reports are welcome.
+
+## Releasing
+
+Bump the version in `package.json` and `server.js`, build the ZIP from the committed tree, then
+publish it with `scripts/publish.ps1` (it derives the tag, asset and release notes from
+`package.json`, and refuses to run if `server.js` disagrees):
+
+```bat
+git archive --format=zip -o dist\DriverRadar-<version>.zip --prefix=DriverRadar-<version>/ HEAD
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\publish.ps1
+```
+
+`-DryRun` prints the version, tag, asset and notes paths without touching GitHub. Notes come
+from `data\release-notes-<version>.md` (git-ignored). Requires an authenticated `gh`.
 
 ## Contributing
 

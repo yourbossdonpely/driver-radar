@@ -3,54 +3,46 @@ setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 title DriverRadar
 
-rem ── 1. Find Node.js (PATH, then the usual install locations) ─────────────
-set "NODE_EXE="
-where node >nul 2>&1
-if not errorlevel 1 set "NODE_EXE=node"
-if not defined NODE_EXE if exist "%ProgramFiles%\nodejs\node.exe" set "NODE_EXE=%ProgramFiles%\nodejs\node.exe"
-if not defined NODE_EXE if exist "%ProgramFiles(x86)%\nodejs\node.exe" set "NODE_EXE=%ProgramFiles(x86)%\nodejs\node.exe"
-if not defined NODE_EXE if exist "%LOCALAPPDATA%\Programs\nodejs\node.exe" set "NODE_EXE=%LOCALAPPDATA%\Programs\nodejs\node.exe"
-if not defined NODE_EXE if exist "C:\dev\nodejs\node.exe" set "NODE_EXE=C:\dev\nodejs\node.exe"
+echo.
+echo   DriverRadar
+echo   -----------
+echo.
 
-if not defined NODE_EXE (
-  echo.
-  echo   Node.js 20 or newer is required to run DriverRadar.
-  echo.
-  where winget >nul 2>&1
-  if not errorlevel 1 (
-    choice /c YN /n /m "  Install Node.js LTS automatically with winget? [Y/N] "
-    if errorlevel 2 goto :no_node
-    echo.
-    winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements
-    if exist "%ProgramFiles%\nodejs\node.exe" set "NODE_EXE=%ProgramFiles%\nodejs\node.exe"
-    if not defined NODE_EXE if exist "%LOCALAPPDATA%\Programs\nodejs\node.exe" set "NODE_EXE=%LOCALAPPDATA%\Programs\nodejs\node.exe"
-  )
-)
-if not defined NODE_EXE goto :no_node
-
-rem ── 2. Elevate before anything is served ─────────────────────────────────
-rem Driver installs need an elevated process. Asking once at launch is better
-rem than failing later with "administrator rights required".
+rem ── 1. Administrator rights before anything else ─────────────────────────
+rem Driver installs need elevation, and so does the one-time Node.js install,
+rem so the prompt happens once at launch instead of halfway through an update.
 net session >nul 2>&1
 if errorlevel 1 (
-  echo Requesting administrator rights...
+  echo   Requesting administrator rights...
   powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
   exit /b
 )
+
+rem ── 2. Dependencies: install Node.js on first run, silently ──────────────
+rem bootstrap.ps1 finds an existing runtime, or installs the official LTS build
+rem (winget, then the nodejs.org MSI) and records the path in data\node-path.txt.
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\bootstrap.ps1"
+if errorlevel 1 goto :no_node
+
+rem bootstrap.ps1 rewrites this file on every run, so a stale path cannot linger.
+set "NODE_EXE="
+if exist "data\node-path.txt" for /f "usebackq delims=" %%A in ("data\node-path.txt") do if not defined NODE_EXE set "NODE_EXE=%%A"
+if not defined NODE_EXE goto :no_node
+if not exist "%NODE_EXE%" goto :no_node
 
 rem ── 3. Reuse a server that is already running ────────────────────────────
 set "SRV_ADMIN="
 for /f "delims=" %%A in ('powershell -NoProfile -ExecutionPolicy Bypass -Command "try { (Invoke-RestMethod -TimeoutSec 2 http://127.0.0.1:7788/api/health).admin } catch { 'down' }"') do set "SRV_ADMIN=%%A"
 
 if /i "%SRV_ADMIN%"=="True" (
-  echo DriverRadar is already running with administrator rights.
+  echo   Already running with administrator rights.
   start "" http://127.0.0.1:7788
   timeout /t 2 >nul
   exit /b
 )
 
 if /i "%SRV_ADMIN%"=="False" (
-  echo DriverRadar is running without administrator rights - restarting it elevated...
+  echo   Running without administrator rights - restarting it elevated...
   powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Invoke-RestMethod -Method Post -TimeoutSec 5 http://127.0.0.1:7788/api/elevate | Out-Null } catch {}"
   for /l %%i in (1,1,25) do (
     timeout /t 1 >nul
@@ -58,7 +50,7 @@ if /i "%SRV_ADMIN%"=="False" (
     for /f "delims=" %%A in ('powershell -NoProfile -ExecutionPolicy Bypass -Command "try { (Invoke-RestMethod -TimeoutSec 1 http://127.0.0.1:7788/api/health).admin } catch { 'down' }"') do set "SRV_ADMIN=%%A"
     if /i "!SRV_ADMIN!"=="True" goto :restarted
   )
-  echo Could not restart the running instance elevated. Run start.cmd again.
+  echo   Could not restart the running instance elevated. Run start.cmd again.
   pause
   exit /b 1
 )
@@ -66,22 +58,29 @@ if /i "%SRV_ADMIN%"=="False" (
 goto :opened
 
 :restarted
-echo DriverRadar is now running with administrator rights.
+echo   Now running with administrator rights.
 start "" http://127.0.0.1:7788
 timeout /t 2 >nul
 exit /b
 
 rem ── 4. Start the supervisor (keeps the server alive, restarts on crash) ──
 :opened
-echo Starting DriverRadar on http://127.0.0.1:7788
+echo   Starting the local server on http://127.0.0.1:7788
+echo.
 "%NODE_EXE%" supervisor.js --open
 pause
 exit /b
 
 :no_node
 echo.
-echo   Could not find Node.js.
-echo   Install the LTS build from https://nodejs.org/ and run start.cmd again.
+echo   DriverRadar could not prepare Node.js 20 or newer.
+echo.
+echo   Usual causes:
+echo     - this PC has no internet connection right now
+echo     - winget or Windows Installer is blocked by group policy
+echo.
+echo   Manual install: https://nodejs.org/ - take the LTS MSI for this PC,
+echo   then run start.cmd again.
 echo.
 pause
 exit /b 1

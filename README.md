@@ -50,13 +50,30 @@ the gap:
 
 ### Install from a release
 
+**Installer (recommended)**
+
+1. Download `DriverRadar-1.3.2-Setup.exe` from
+   [**Releases**](https://github.com/yourbossdonpely/driver-radar/releases/latest).
+2. Run it and press **Install**. Setup needs no administrator rights: it installs for your
+   account in `%LOCALAPPDATA%\DriverRadar`, adds Start Menu and Desktop shortcuts, and
+   registers DriverRadar in **Apps & features** so it uninstalls like any other app.
+3. Launch **DriverRadar** from the Start Menu.
+
+It is one 0.4 MB file with no dependencies — the app and its icon are inside — and it keeps
+`data\` (downloads, backups) when you install a newer version over it.
+
+The installer only unpacks the app; `start.cmd` still does the first-run work, so the
+paragraph after the ZIP option below applies either way.
+
+**Portable ZIP**
+
 1. Download `DriverRadar-1.3.2.zip` from
    [**Releases**](https://github.com/yourbossdonpely/driver-radar/releases/latest).
 2. Extract it anywhere (for example `C:\Tools\DriverRadar`). Avoid `Program Files` — the
    app writes downloads next to itself.
 3. Double-click **`start.cmd`**.
 
-That is the whole install. `start.cmd` asks for administrator rights **before** the app
+With the ZIP, that is the whole install. `start.cmd` asks for administrator rights **before** the app
 opens, installs Node.js if the machine has no usable runtime, starts the local server on
 `http://127.0.0.1:7788`, and opens your browser.
 
@@ -278,6 +295,9 @@ driver-radar/
 ├─ supervisor.js          keeps the server alive, restarts it after a crash
 ├─ cli.js                 terminal front end
 ├─ check-nvidia.js        on-demand check of the NVIDIA GPU matcher
+├─ installer/
+│  └─ setup.cs            setup wizard, launcher and uninstaller, compiled into
+│                         DriverRadar-<version>-Setup.exe by the build script
 ├─ start.cmd              launcher: elevates, installs Node, opens the browser
 ├─ requirements.txt       what the app needs from Windows (no packages)
 │
@@ -322,6 +342,11 @@ driver-radar/
 ## Limitations
 
 - **Firmware/BIOS is out of scope.** Only Windows driver packages are offered.
+- **Windows only, by design.** There is no Linux, Ubuntu or macOS build, and a port would
+  not be a port: the whole engine is `pnputil`, PnP enumeration, the Windows Update COM API
+  and PowerShell INF installs. Those machines have no Windows drivers to update, so a
+  `.deb`/`.dmg` would only ship a browser that cannot do anything. The setup EXE and npm
+  tarball are the two distribution formats.
 - **Intel/AMD/OEM direct APIs are not used.** Several block automated clients; the catalog
   covers their WHQL packages. Vendor adapters can be added behind the same interface.
 - **Catalog availability.** A very old package can disappear; rescanning refreshes links.
@@ -365,6 +390,41 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\publish.ps1
 
 `-DryRun` prints the version, tag, asset and notes paths without touching GitHub. Notes come
 from `data\release-notes-<version>.md` (git-ignored). Requires an authenticated `gh`.
+
+A release carries two assets: the portable `DriverRadar-<version>.zip` and the
+`DriverRadar-<version>-Setup.exe` installer.
+
+### The installer
+
+```bat
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-installer.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-installer.ps1 -Commit 6be33a3
+```
+
+Writes `dist\DriverRadar-<version>-Setup.exe`. It is C# (`installer\setup.cs`) compiled with
+the .NET Framework `csc.exe` that ships with Windows, with the app embedded as a ZIP
+resource — no Inno Setup, no NSIS, no downloads, and the same version guard as the publish
+script. The EXE behaves as its own launcher and uninstaller:
+
+| Invocation | Effect |
+|---|---|
+| `DriverRadar-<version>-Setup.exe` | setup wizard (folder, shortcuts, progress, finish) |
+| `… -Setup.exe --silent` | same install, no UI |
+| `… -Setup.exe --extract <dir>` | unpack the payload only (used to verify a build) |
+| `<install>\DriverRadar.exe --uninstall [--silent]` | remove the app, shortcuts and its registry entry |
+
+### npm
+
+`package.json` exposes `cli.js` as a `bin` and a `files` allowlist, so the package is
+installable without a clone:
+
+```bat
+npm pack                 :: builds driver-radar-<version>.tgz
+npx driver-radar list    :: run the CLI from the package
+```
+
+Publishing is `npm publish` and needs an npm login on the machine. The package is
+Windows-only like the app: `driver-radar scan` shells out to PowerShell.
 
 ## Contributing
 

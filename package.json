@@ -4,6 +4,21 @@
   "private": false,
   "description": "Open-source Windows driver scanner and updater: verifies packages against the Microsoft Update Catalog and downloads them over parallel connections.",
   "main": "server.js",
+  "bin": {
+    "driver-radar": "cli.js"
+  },
+  "files": [
+    "cli.js",
+    "server.js",
+    "supervisor.js",
+    "check-nvidia.js",
+    "start.cmd",
+    "requirements.txt",
+    "lib/",
+    "public/",
+    "scripts/",
+    "installer/"
+  ],
   "scripts": {
     "start": "node supervisor.js --open",
     "serve": "node server.js",

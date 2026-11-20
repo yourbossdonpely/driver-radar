@@ -10,12 +10,13 @@ const bus = require('./lib/bus');
 const scan = require('./lib/scan');
 const jobs = require('./lib/jobs');
 const backup = require('./lib/backup');
+const ignored = require('./lib/ignored');
 const { checkAdmin, isAdminSync } = require('./lib/admin');
 
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const PORT = Number(process.env.PORT || 7788);
-const VERSION = '1.4.0';
+const VERSION = '1.4.1';
 
 // A dead local server looks like "Failed to fetch" in the browser, so log any
 // stray error and keep serving instead of exiting silently.
@@ -114,8 +115,15 @@ function localOnly(req) {
 }
 
 function statePayload() {
+  const rows = scan.snapshot().rows.map((row) => ({
+    ...row,
+    ignored: ignored.isIgnored(row.id),
+  }));
   return {
-    scan: scan.snapshot(),
+    scan: {
+      ...scan.snapshot(),
+      rows,
+    },
     admin: isAdminSync(),
     jobs: jobs.listJobs(),
     version: VERSION,
@@ -146,6 +154,62 @@ async function handleApi(req, res, url) {
   if (req.method === 'POST' && pathname === '/api/scan') {
     const result = await scan.scan();
     return json(res, 200, result);
+  }
+
+  if (req.method === 'GET' && pathname === '/api/ignored') {
+    return json(res, 200, { ignored: ignored.listIgnored() });
+  }
+
+  if (req.method === 'POST' && pathname === '/api/ignored') {
+    const body = await readBody(req);
+    const rowId = body.rowId;
+    if (!rowId) return json(res, 400, { error: 'rowId is required.' });
+    ignored.ignore(rowId);
+    return json(res, 200, { ok: true, ignored: ignored.listIgnored() });
+  }
+
+  if (req.method === 'DELETE' && pathname === '/api/ignored') {
+    const body = await readBody(req);
+    const rowId = body.rowId;
+    if (!rowId) return json(res, 400, { error: 'rowId is required.' });
+    ignored.unignore(rowId);
+    return json(res, 200, { ok: true, ignored: ignored.listIgnored() });
+  }
+
+  if (req.method === 'GET' && pathname === '/api/export') {
+    const s = scan.snapshot();
+    const rows = s.rows || [];
+    const header =
+      'Device,Class,Provider,Installed Version,Installed Date,Available Version,Available Source,State,Problem,Hardware ID,Instance ID\n';
+    const csv = rows
+      .map((r) => {
+        const escCsv = (v) => {
+          if (v == null) return '';
+          const s = String(v);
+          if (s.includes(',') || s.includes('"') || s.includes('\n')) return `"${s.replace(/"/g, '""')}"`;
+          return s;
+        };
+        return [
+          escCsv(r.name),
+          escCsv(r.classLabel),
+          escCsv(r.installed?.provider),
+          escCsv(r.installed?.version),
+          escCsv(r.installed?.date),
+          escCsv(r.latest?.version),
+          escCsv(r.latest?.sourceLabel),
+          escCsv(r.state),
+          escCsv(r.problem),
+          escCsv(r.hardwareId),
+          escCsv(r.instanceId),
+        ].join(',');
+      })
+      .join('\n');
+    res.writeHead(200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="driverradar-scan.csv"',
+    });
+    res.end(header + csv);
+    return undefined;
   }
 
   if (req.method === 'POST' && pathname === '/api/install') {
@@ -200,6 +264,20 @@ async function handleApi(req, res, url) {
     }));
     const rollbacks = await backup.findRollbacks(devices);
     return json(res, 200, { rollbacks });
+  }
+
+  if (req.method === 'GET' && pathname === '/api/backup-destination') {
+    return json(res, 200, { path: backup.getBackupDir() });
+  }
+
+  if (req.method === 'POST' && pathname === '/api/backup-destination') {
+    const body = await readBody(req);
+    const dir = body.path;
+    if (!dir || typeof dir !== 'string') {
+      return json(res, 400, { error: 'path is required.' });
+    }
+    backup.setBackupDir(dir);
+    return json(res, 200, { ok: true, path: backup.getBackupDir() });
   }
 
   if (req.method === 'POST' && pathname === '/api/restore') {

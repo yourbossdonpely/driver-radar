@@ -118,6 +118,12 @@
           </div>
           <button class="btn ghost small" id="selectAll" hidden>Select all updates</button>
           <button class="btn ghost small" id="restoreBtn">Restore from backup</button>
+          <button class="btn ghost small" id="exportBtn">Export report</button>
+          <label class="backup-dest" style="margin-left:12px;white-space:nowrap;font-size:0.85rem;color:var(--muted-foreground);">
+            Backup to:
+            <input id="backupDest" type="text" placeholder="e.g. E:\DriverBackup" style="margin-left:6px;padding:2px 6px;font-size:0.85rem;" />
+            <button class="btn ghost small" id="setBackupDest" style="margin-left:4px;padding:2px 8px;font-size:0.85rem;">Set</button>
+          </label>
         </div>
         <label class="search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">

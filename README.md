@@ -130,9 +130,16 @@ machine without it. The repository has no dependencies, so there is no `npm inst
    the verification result.
 4. Tick the updates you want, choose **16 connections**, and press **Update selected** —
    or **Download only** to keep the files without installing.
-5. If a package fails, the job panel offers **Retry N failed** for just those items.
-6. **Restore from backup** in the toolbar lists earlier snapshots and reinstalls one, which
-   is the rollback path if an update goes wrong.
+5. Don't need a particular update? Press **Ignore** on its row to hide it from the list.
+   Dismissed updates are remembered and can be restored from the row detail.
+6. If a package fails, the job panel offers **Retry N failed** for just those items.
+7. **Restore from backup** in the toolbar lists earlier snapshots and reinstalls one,
+   which is the rollback path if an update goes wrong.
+8. **Export report** downloads a CSV of every scanned device (name, class, provider,
+   versions, state, hardware ID). Useful for IT inventory.
+9. **Backup to:** lets you change where `pnputil /export-driver` writes snapshots —
+   point it at a USB drive (`E:\DriverBackup`) so backups survive a drive failure or
+   clean Windows install.
 
 Before the first install the app creates an optional System Restore point (on by default) and
 runs an optional driver backup (also on by default), and the job reports whether a reboot is
@@ -161,6 +168,12 @@ node cli.js install     :: download + install all available updates (admin)
 | POST | `/api/open` | Open the downloads folder |
 | POST | `/api/elevate` | Restart the server elevated |
 | GET | `/api/health` | Liveness + admin flag |
+| GET | `/api/ignored` | List dismissed ("ignored") update row IDs |
+| POST | `/api/ignored` | `{rowId}` — hide an update from the list |
+| DELETE | `/api/ignored` | `{rowId}` — restore a hidden update |
+| GET | `/api/backup-destination` | Current backup folder path |
+| POST | `/api/backup-destination` | `{path}` — set custom backup folder |
+| GET | `/api/export` | CSV of every scanned device (download) |
 
 ## How it works
 

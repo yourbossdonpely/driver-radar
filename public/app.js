@@ -359,6 +359,8 @@
 
   function filteredRows() {
     let rows = app.scan?.rows || [];
+    // Ignored ("dismissed") updates are hidden by default so they don't clutter the list.
+    rows = rows.filter((r) => !r.ignored);
     if (app.filter === 'update') rows = rows.filter((r) => r.state === 'update');
     else if (app.filter === 'problem') rows = rows.filter((r) => r.state === 'problem' || r.state === 'missing' || r.problem);
     else if (app.filter === 'current') rows = rows.filter((r) => r.state === 'current' || r.state === 'newer');
@@ -439,7 +441,13 @@
             ${
               row.state === 'update'
                 ? `<button class="btn primary small" data-install="${esc(row.id)}">Download &amp; install</button>
-                   <button class="btn ghost small" data-download="${esc(row.id)}">Download only</button>`
+                   <button class="btn ghost small" data-download="${esc(row.id)}">Download only</button>
+                   <button class="btn ghost small" data-ignore="${esc(row.id)}" title="Hide this update from the list">Ignore</button>`
+                : ''
+            }
+            ${
+              row.ignored
+                ? `<button class="btn ghost small" data-unignore="${esc(row.id)}" title="Show this update again">Undo ignore</button>`
                 : ''
             }
             ${
@@ -902,6 +910,30 @@
         startJob([download.dataset.download], false);
         return;
       }
+      const ignore = event.target.closest('[data-ignore]');
+      if (ignore) {
+        event.stopPropagation();
+        api('/api/ignored', { method: 'POST', body: { rowId: ignore.dataset.ignore } }).then(
+          () => {
+            toast('Update hidden.', 'good');
+            fetchState();
+          },
+          () => toast('Could not hide update.', 'bad'),
+        );
+        return;
+      }
+      const unignore = event.target.closest('[data-unignore]');
+      if (unignore) {
+        event.stopPropagation();
+        api('/api/ignored', { method: 'DELETE', body: { rowId: unignore.dataset.unignore } }).then(
+          () => {
+            toast('Update restored.', 'good');
+            fetchState();
+          },
+          () => toast('Could not restore update.', 'bad'),
+        );
+        return;
+      }
       if (event.target.closest('.row-check')) return;
       const main = event.target.closest('.row-main');
       if (main) {
@@ -966,6 +998,51 @@
     });
 
     $('#restoreBtn').addEventListener('click', openRestore);
+
+    $('#exportBtn').addEventListener('click', async () => {
+      const s = app.scan;
+      if (!s || !s.rows?.length) {
+        toast('Nothing to export yet — run a scan first.', 'bad');
+        return;
+      }
+      try {
+        const res = await fetch('/api/export', { method: 'GET' });
+        if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `driverradar-scan-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast('Scan report downloaded.', 'good');
+      } catch {
+        toast('Export failed.', 'bad');
+      }
+    });
+
+    $('#setBackupDest').addEventListener('click', async () => {
+      const input = $('#backupDest');
+      const dir = input.value.trim();
+      if (!dir) {
+        toast('Enter a backup folder path.', 'bad');
+        return;
+      }
+      try {
+        const res = await fetch('/api/backup-destination', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: dir }),
+        });
+        if (!res.ok) throw new Error('Failed to set backup destination');
+        const data = await res.json();
+        toast(`Backup destination set: ${data.path}`, 'good');
+      } catch {
+        toast('Could not set backup destination.', 'bad');
+      }
+    });
 
     $('#offlineRetry').addEventListener('click', async () => {
       const ok = await probeServer();
@@ -1080,5 +1157,12 @@
       if (err.offline) setOffline(true);
       else toast(err.message || 'Could not reach the local server. Is it running?', 'bad');
     })
-    .finally(connect);
+    .finally(() => {
+      connect();
+      // Load the configured backup destination and show it in the input field.
+      api('/api/backup-destination').then((d) => {
+        const input = $('#backupDest');
+        if (input && d.path) input.value = d.path;
+      });
+    });
 })();

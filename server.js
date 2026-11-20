@@ -185,11 +185,41 @@ async function handleApi(req, res, url) {
     return json(res, 200, { dir: backup.BACKUP_DIR, backups: await backup.listBackups() });
   }
 
+  if (req.method === 'DELETE' && pathname === '/api/backups') {
+    const body = await readBody(req);
+    const ok = await backup.deleteBackup(body.id);
+    return json(res, ok ? 200 : 404, { ok });
+  }
+
+  if (req.method === 'GET' && pathname === '/api/rollbacks') {
+    const devices = (scan.state.rows || []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      hardwareId: r.hardwareId,
+      version: r.installed?.version,
+    }));
+    const rollbacks = await backup.findRollbacks(devices);
+    return json(res, 200, { rollbacks });
+  }
+
   if (req.method === 'POST' && pathname === '/api/restore') {
     const body = await readBody(req);
     const dir = backup.resolveBackup(body.id);
     if (!dir) return json(res, 400, { error: 'Unknown backup.' });
     const result = await jobs.startRestore({ dir });
+    if (result.error === 'admin') return json(res, 409, result);
+    if (result.error) return json(res, 400, result);
+    return json(res, 200, result);
+  }
+
+  if (req.method === 'POST' && pathname === '/api/rollback') {
+    const body = await readBody(req);
+    const result = await jobs.startRollback({
+      dir: body.dir,
+      name: body.name,
+      version: body.version,
+      rowId: body.rowId,
+    });
     if (result.error === 'admin') return json(res, 409, result);
     if (result.error) return json(res, 400, result);
     return json(res, 200, result);

@@ -49,6 +49,7 @@
     scan: null,
     admin: false,
     jobs: [],
+    rollbacks: null,
     filter: 'all',
     query: '',
     selected: new Set(),
@@ -118,6 +119,31 @@
 
   let healthTimer = null;
   let sseDownTimer = null;
+  let rollbackTimer = null;
+  const notifiedJobs = new Set();
+
+/**
+ * Rollbacks are computed server-side by walking every backup snapshot and
+ * parsing its INF files, so they are fetched on demand instead of bloating
+ * the hot /api/state path. A scan completion or a finished job refreshes them.
+ */
+  async function fetchRollbacks() {
+    try {
+      const data = await api('/api/rollbacks');
+      const next = data?.rollbacks || {};
+      const changed = JSON.stringify(next) !== JSON.stringify(app.rollbacks);
+      app.rollbacks = next;
+      if (changed) renderRows();
+    } catch {
+      // Rollbacks are a bonus view: a failure here must never block the scan UI.
+      app.rollbacks = {};
+    }
+  }
+
+  function scheduleRollbacks() {
+    clearTimeout(rollbackTimer);
+    rollbackTimer = setTimeout(fetchRollbacks, 400);
+  }
 
   function setOffline(offline) {
     app.offline = Boolean(offline);
@@ -200,8 +226,9 @@
       }
       return;
     }
-
     renderAll();
+    scheduleRollbacks();
+
     if (app.scan.phase === 'ready' && previous && previous.phase === 'scanning') {
       const n = app.scan.stats?.updates || 0;
       toast(n ? `${n} update${n === 1 ? '' : 's'} available.` : 'Scan complete — everything is current.', 'good');
@@ -413,6 +440,11 @@
               row.state === 'update'
                 ? `<button class="btn primary small" data-install="${esc(row.id)}">Download &amp; install</button>
                    <button class="btn ghost small" data-download="${esc(row.id)}">Download only</button>`
+                : ''
+            }
+            ${
+              app.rollbacks?.[row.id]
+                ? `<button class="btn ghost small rollback-btn" data-rollback="${esc(row.id)}" title="Reinstall previous driver version from backup snapshot">Roll back to ${esc(app.rollbacks[row.id].version)}</button>`
                 : ''
             }
             ${
@@ -838,8 +870,8 @@
     $('#jobFolder').classList.toggle('hidden', running);
     $('#jobPanel').dataset.jobId = job.id;
 
-    if (!running && job.rebootRequired && !job.notified) {
-      job.notified = true;
+    if (!running && job.rebootRequired && !notifiedJobs.has(job.id)) {
+      notifiedJobs.add(job.id);
       toast('A restart is required to finish installing the drivers.', '');
     }
   }
@@ -999,6 +1031,7 @@
         app.jobs = [...app.jobs.filter((j) => j.id !== job.id), job];
         renderJob(job);
         if (job.status !== 'running') {
+          scheduleRollbacks();
           const label =
             job.status === 'done'
               ? job.install

@@ -26,7 +26,8 @@
     "serve": "node server.js",
     "supervise": "node supervisor.js",
     "scan": "node cli.js scan",
-    "list": "node cli.js list"
+    "list": "node cli.js list",
+    "test": "node test/run.js"
   },
   "keywords": [
     "windows",

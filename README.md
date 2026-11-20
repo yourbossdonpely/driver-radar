@@ -52,7 +52,7 @@ the gap:
 
 **Installer (recommended)**
 
-1. Download `DriverRadar-1.3.3-Setup.exe` from
+1. Download `DriverRadar-1.4.0-Setup.exe` from
    [**Releases**](https://github.com/yourbossdonpely/driver-radar/releases/latest).
 2. Run it and complete the setup wizard (accept the agreement, select destination, and click **Install**). Setup needs no administrator rights: it installs for your
    account in `%LOCALAPPDATA%\DriverRadar`, adds Start Menu and Desktop shortcuts, and
@@ -67,7 +67,7 @@ paragraph after the ZIP option below applies either way.
 
 **Portable ZIP**
 
-1. Download `DriverRadar-1.3.3.zip` from
+1. Download `DriverRadar-1.4.0.zip` from
    [**Releases**](https://github.com/yourbossdonpely/driver-radar/releases/latest).
 2. Extract it anywhere (for example `C:\Tools\DriverRadar`). Avoid `Program Files` — the
    app writes downloads next to itself.
@@ -182,7 +182,7 @@ node cli.js install     :: download + install all available updates (admin)
                  local UI (SSE) → downloader → installer
 ```
 
-### The three sources
+### The sources
 
 1. **Windows Update** — the Microsoft Update service (`7971f918-…`) through
    `Microsoft.Update.Session`. Authoritative, but on a healthy machine it often returns
@@ -199,6 +199,15 @@ node cli.js install     :: download + install all available updates (admin)
    driver and a desktop GPU does not. A name carrying `Laptop`/`Notebook`/`Mobile`/`Max-Q`
    never falls back to a desktop series: when the notebook series has no such product the
    NVIDIA source stays silent and the catalog result is used instead.
+4. **AMD** — the AMD Adrenalin release page and release notes. DriverRadar reads the
+   current Adrenalin version from AMD's driver download page, then matches the machine's
+   installed driver branch against the `Windows Driver Store Version` values published in
+   that release's notes. AMD ships one branch per GPU generation in the same release, so a
+   version is only offered as an update when it matches the branch already running.
+5. **Intel** — Intel's direct download feeds for Arc/Iris Xe/UHD/HD graphics, Wi-Fi, and
+   Bluetooth adapters. CPUs and chipsets are classified as Intel devices so they appear in
+   scans; their drivers are resolved through the Microsoft Update Catalog, since Intel does
+   not publish a versioned download feed for them.
 
 ### Fuzzy search is not a match
 
@@ -347,8 +356,11 @@ driver-radar/
   and PowerShell INF installs. Those machines have no Windows drivers to update, so a
   `.deb`/`.dmg` would only ship a browser that cannot do anything. The setup EXE and npm
   tarball are the two distribution formats.
-- **Intel/AMD/OEM direct APIs are not used.** Several block automated clients; the catalog
-  covers their WHQL packages. Vendor adapters can be added behind the same interface.
+- **Vendor direct APIs.** AMD (Adrenalin) and Intel (graphics, Wi-Fi, Bluetooth) are
+  queried directly where their sites permit automated access; CPUs, chipsets, and every
+  other device class fall back to the Microsoft Update Catalog. Vendors that block
+  automated clients (some OEM pages return 403) are still covered by the catalog's WHQL
+  packages.
 - **Catalog availability.** A very old package can disappear; rescanning refreshes links.
 - **Grouping** merges rows by hardware ID + name, so identical devices show one row with an
   instance count.

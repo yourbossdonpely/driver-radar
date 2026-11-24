@@ -96,8 +96,7 @@ staging part on its own, and is the same script the release workflow runs.
 
 ### Install from a release
 
-Every release carries the native desktop app for all three platforms **and** the original
-portable files:
+Every release carries the native Windows desktop app **and** the original portable files:
 
 | Platform | Asset | What it is |
 |---|---|---|

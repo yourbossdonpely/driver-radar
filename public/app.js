@@ -60,7 +60,6 @@
     jobId: null,
     offline: false,
     platform: 'win32',
-    feedName: '',
     waitSince: 0,
   };
 
@@ -521,9 +520,7 @@
       $('#emptyState').classList.add('hidden');
       if (!$('#scanFeed')) {
         list.innerHTML = feedMarkup();
-        // A fresh feed starts from nothing: the first device has to paint and
-        // flash, and the wait clock must not inherit the previous scan.
-        app.feedName = '';
+        // A new feed must not inherit the previous scan's wait clock.
         app.waitSince = 0;
       }
       renderScanFeed();
@@ -553,6 +550,11 @@
     list.innerHTML = rows.map(rowHtml).join('');
   }
 
+  // Nothing to repaint when the text is already what we would write.
+  function setText(el, value) {
+    if (el && el.textContent !== value) el.textContent = value;
+  }
+
   // The scan streams the name of every device it checks, so the list becomes a
   // live feed while the engine works.
   function feedMarkup() {
@@ -568,7 +570,7 @@
         </div>
         <div class="feed-wait" id="feedWait" hidden>
           <div class="feed-wait-head">
-            <span class="feed-wait-tag">Windows Update</span>
+            <span class="feed-class feed-wait-tag">Windows Update</span>
             <span class="feed-wait-time" id="feedWaitTime">0s</span>
           </div>
           <div class="feed-wait-text" id="feedWaitText">Collecting Windows Update results</div>
@@ -583,16 +585,15 @@
     if (!$('#scanFeed')) return;
     const recent = Array.isArray(s.recent) ? s.recent : [];
     const head = recent[0];
-    const waiting = s.stage === 'waiting' || Boolean(s.waitingSince);
+    const waiting = s.stage === 'waiting';
     renderFeedWaiting(waiting, s);
 
-    if (head && head.name && head.name !== app.feedName) {
-      app.feedName = head.name;
-      const nameEl = $('#feedCurrentName');
-      if (nameEl) {
-        nameEl.textContent = head.name;
-        nameEl.title = head.name;
-      }
+    // The DOM already holds the name on screen, so it is the comparison point:
+    // no extra state to keep in sync, and the flash only fires on a real change.
+    const nameEl = $('#feedCurrentName');
+    if (head && head.name && nameEl && nameEl.textContent !== head.name) {
+      nameEl.textContent = head.name;
+      nameEl.title = head.name;
       setText($('#feedCurrentClass'), head.cls || 'Device');
       const box = $('#feedCurrent');
       if (box) {
@@ -605,9 +606,9 @@
     setText($('#feedCount'), String(s.scannedCount || 0));
     setText($('#feedTotal'), s.candidateCount ? `/ ${s.candidateCount}` : '/ \u2014');
 
-    // While waiting the newest device is history, not current, so keep it in
-    // the list instead of dropping it with the current strip.
-    syncFeedRows(waiting ? recent.slice(0, 8) : recent.slice(1, 9));
+    // While waiting the newest device is history, not current, so it stays in
+    // the list instead of leaving with the current strip.
+    syncFeedRows(waiting ? recent : recent.slice(1));
   }
 
   // Windows Update can sit for 20+ seconds after the catalog pass. Swap the
@@ -645,11 +646,6 @@
 
   // Only touch what changed, so rows keep their entry animation instead of
   // restarting on every event.
-  // Nothing to repaint when the text is already what we would write.
-  function setText(el, value) {
-    if (el && el.textContent !== value) el.textContent = value;
-  }
-
   function syncFeedRows(entries) {
     const list = $('#feedList');
     if (!list) return;
@@ -765,7 +761,6 @@
       cached: false,
       stageLabel: 'Starting scan',
       startedAt: new Date().toISOString(),
-      current: null,
       recent: [],
       scannedCount: 0,
       candidateCount: 0,

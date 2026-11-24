@@ -97,12 +97,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        # find rather than a ** glob: the macOS runners still ship bash 3.2,
+        # which has no globstar, so nested bundle folders were never matched.
         run: |
-          shopt -s globstar nullglob
-          files=(desktop/src-tauri/target/**/release/bundle/nsis/*.exe
-                 desktop/src-tauri/target/**/release/bundle/dmg/*.dmg
-                 desktop/src-tauri/target/**/release/bundle/appimage/*.AppImage
-                 desktop/src-tauri/target/**/release/bundle/deb/*.deb)
+          files=()
+          while IFS= read -r -d '' file; do files+=("$file"); done < <(
+            find desktop/src-tauri/target -type f \(
+              -name '*.exe' -o -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb'
+            \) -path '*/bundle/*' -print0)
           if [ ${#files[@]} -eq 0 ]; then
             echo "::error::No installer was produced for ${{ matrix.platform }}/${{ matrix.arch }}."
             exit 1

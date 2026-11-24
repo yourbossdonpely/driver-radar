@@ -59,6 +59,7 @@
     ticker: null,
     jobId: null,
     offline: false,
+    platform: 'win32',
   };
 
   const esc = (value) =>
@@ -97,7 +98,7 @@
       });
     } catch {
       setOffline(true);
-      const offline = new Error('The local server stopped. Run start.cmd to bring it back.');
+      const offline = new Error('The local server stopped. Restart DriverRadar to bring it back.');
       offline.offline = true;
       throw offline;
     }
@@ -191,6 +192,7 @@
       renderAdmin();
     }
     if (payload.scan) applyScan(payload.scan, true);
+    if (typeof payload.platform === 'string') app.platform = payload.platform;
     if (Array.isArray(payload.jobs) && payload.jobs.length) {
       const latest = payload.jobs[payload.jobs.length - 1];
       app.jobs = payload.jobs;
@@ -237,6 +239,7 @@
   }
 
   function renderAll() {
+    renderPlatform();
     renderSystem();
     renderAdmin();
     renderStats();
@@ -249,6 +252,7 @@
   }
 
   function renderSystem() {
+    renderPlatform();
     const system = app.scan?.system || {};
     const label = [system.manufacturer, system.model].filter(Boolean).join(' ');
     const pill = $('#systemPill');
@@ -257,8 +261,35 @@
     pill.title = [label, system.os, system.build ? `Build ${system.build}` : null].filter(Boolean).join(' · ');
   }
 
+  function renderPlatform() {
+    const unsupported = app.platform !== 'win32';
+    document.body.classList.toggle('is-unsupported', unsupported);
+    if (!unsupported) return;
+    const btn = $('#scanBtn');
+    if (btn) btn.disabled = true;
+    const orb = $('#orbLabel');
+    if (orb) orb.textContent = 'WINDOWS ONLY';
+    const hero = $('#heroTitle');
+    if (hero) hero.textContent = 'Windows drivers need Windows.';
+    const sub = $('#heroSub');
+    if (sub) {
+      sub.textContent =
+        'This desktop build launches anywhere, but DriverRadar finds and installs drivers through ' +
+        'PowerShell, the PnP tree and pnputil. Open it on a Windows PC to scan.';
+    }
+  }
+
   function renderAdmin() {
     const pill = $('#adminPill');
+    if (app.platform !== 'win32') {
+      // Elevation is a Windows concept; the other desktop builds say what they
+      // can do instead of offering a button that cannot work.
+      pill.classList.remove('is-admin', 'is-bad');
+      $('#adminText').textContent = 'Windows only';
+      pill.title = 'Driver installation needs Windows.';
+      pill.style.cursor = 'default';
+      return;
+    }
     pill.classList.toggle('is-admin', app.admin);
     pill.classList.toggle('is-bad', !app.admin);
     $('#adminText').textContent = app.admin ? 'Administrator' : 'Standard user';

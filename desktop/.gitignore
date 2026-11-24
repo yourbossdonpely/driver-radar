@@ -1,0 +1,6 @@
+# Build output and the staged runtime payload
+node_modules/
+target/
+resources/
+.cache/
+gen/

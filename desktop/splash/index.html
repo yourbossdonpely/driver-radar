@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>DriverRadar</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #05090e;
+        --ink: #e6f2ef;
+        --muted: #7d938f;
+        --accent: #4be3b0;
+        --bad: #ff7b72;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: grid;
+        place-items: center;
+        background: radial-gradient(1100px 620px at 50% 22%, #0d2420 0%, var(--bg) 68%);
+        color: var(--ink);
+        font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+        overflow: hidden;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      .shell { display: grid; justify-items: center; gap: 26px; text-align: center; }
+      .radar { position: relative; width: 108px; height: 108px; }
+      .radar span {
+        position: absolute; inset: 0;
+        border: 1px solid rgba(75, 227, 176, 0.45);
+        border-radius: 50%;
+        opacity: 0;
+        animation: pulse 2.6s ease-out infinite;
+      }
+      .radar span:nth-child(2) { animation-delay: 0.85s; }
+      .radar span:nth-child(3) { animation-delay: 1.7s; }
+      .core {
+        position: absolute; inset: 34px;
+        display: grid; place-items: center;
+        border-radius: 16px;
+        background: rgba(75, 227, 176, 0.12);
+        border: 1px solid rgba(75, 227, 176, 0.5);
+        color: var(--accent);
+      }
+      .core svg { width: 26px; height: 26px; }
+      h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: 0.01em; }
+      p { margin: 8px 0 0; max-width: 460px; font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+      .bar { width: 190px; height: 2px; border-radius: 2px; background: rgba(125, 147, 143, 0.22); overflow: hidden; }
+      .bar i { display: block; width: 42%; height: 100%; background: var(--accent); border-radius: 2px; animation: slide 1.5s ease-in-out infinite; }
+      body.failed .bar { display: none; }
+      body.failed .radar span { animation: none; }
+      body.failed .core { color: var(--bad); border-color: rgba(255, 123, 114, 0.5); background: rgba(255, 123, 114, 0.1); }
+      body.failed h1 { color: var(--bad); }
+      @keyframes pulse {
+        0% { transform: scale(0.45); opacity: 0.9; }
+        80% { transform: scale(1); opacity: 0; }
+        100% { opacity: 0; }
+      }
+      @keyframes slide {
+        0% { transform: translateX(-110%); }
+        100% { transform: translateX(360%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .radar span, .bar i { animation: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="radar" aria-hidden="true">
+        <span></span><span></span><span></span>
+        <div class="core">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <rect x="6" y="6" width="12" height="12" rx="2" />
+            <path d="M9.5 3v3M14.5 3v3M9.5 18v3M14.5 18v3M3 9.5h3M3 14.5h3M18 9.5h3M18 14.5h3" />
+          </svg>
+        </div>
+      </div>
+
+      <div>
+        <h1 id="title">Starting DriverRadar</h1>
+        <p id="detail">Preparing the local engine and reading your last scan.</p>
+      </div>
+
+      <div class="bar" aria-hidden="true"><i></i></div>
+    </div>
+
+    <script>
+      // Called by the Rust shell if the local engine never answers.
+      window.driverRadarFailed = function (message) {
+        document.body.classList.add("failed");
+        document.getElementById("title").textContent = "DriverRadar could not start";
+        document.getElementById("detail").textContent =
+          message + " Log: desktop.log in this app's data folder.";
+      };
+    </script>
+  </body>
+</html>

@@ -11,20 +11,23 @@ const scan = require('./lib/scan');
 const jobs = require('./lib/jobs');
 const backup = require('./lib/backup');
 const ignored = require('./lib/ignored');
+const { DATA_DIR } = require('./lib/paths');
 const { checkAdmin, isAdminSync } = require('./lib/admin');
 
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const PORT = Number(process.env.PORT || 7788);
-const VERSION = '1.4.1';
+const VERSION = '1.5.0';
+const PLATFORM = process.platform;
+const IS_WINDOWS = PLATFORM === 'win32';
 
 // A dead local server looks like "Failed to fetch" in the browser, so log any
 // stray error and keep serving instead of exiting silently.
 function logCrash(kind, err) {
   try {
-    fs.mkdirSync(path.join(ROOT, 'data'), { recursive: true });
+    fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.appendFileSync(
-      path.join(ROOT, 'data', 'server.err.log'),
+      path.join(DATA_DIR, 'server.err.log'),
       `[${new Date().toISOString()}] ${kind}: ${err?.stack || err}\n`,
     );
   } catch {
@@ -127,6 +130,7 @@ function statePayload() {
     admin: isAdminSync(),
     jobs: jobs.listJobs(),
     version: VERSION,
+    platform: PLATFORM,
     downloads: jobs.DOWNLOAD_DIR,
   };
 }
@@ -320,13 +324,23 @@ async function handleApi(req, res, url) {
       if (!inside) return json(res, 403, { error: 'forbidden' });
       target = resolved;
     }
-    const child = spawn('explorer.exe', [target], { detached: true, stdio: 'ignore' });
+    // Windows opens Explorer; the desktop shell also runs on macOS and Linux
+    // where the same button must open the platform's file manager.
+    const [opener, openerArgs] = IS_WINDOWS
+      ? ['explorer.exe', [target]]
+      : PLATFORM === 'darwin'
+        ? ['open', [target]]
+        : ['xdg-open', [target]];
+    const child = spawn(opener, openerArgs, { detached: true, stdio: 'ignore' });
     child.on('error', () => {});
     child.unref();
     return json(res, 200, { ok: true });
   }
 
   if (req.method === 'POST' && pathname === '/api/elevate') {
+    if (!IS_WINDOWS) {
+      return json(res, 400, { error: 'Elevation is a Windows feature.', platform: PLATFORM });
+    }
     // Absolute path: an elevated shell may not have the user PATH that holds node.
     // Start the supervisor (not the server directly) so the elevated instance is
     // also crash-protected and "Retry now" keeps working after the hand-off.
@@ -347,7 +361,7 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === 'GET' && pathname === '/api/health') {
-    return json(res, 200, { ok: true, version: VERSION, admin: isAdminSync() });
+    return json(res, 200, { ok: true, version: VERSION, admin: isAdminSync(), platform: PLATFORM });
   }
 
   return json(res, 404, { error: 'unknown endpoint' });

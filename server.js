@@ -17,7 +17,7 @@ const { checkAdmin, isAdminSync } = require('./lib/admin');
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const PORT = Number(process.env.PORT || 7788);
-const VERSION = '1.5.1';
+const VERSION = '1.5.2';
 const PLATFORM = process.platform;
 const IS_WINDOWS = PLATFORM === 'win32';
 

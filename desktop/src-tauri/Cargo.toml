@@ -1,6 +1,6 @@
 [package]
 name = "driver-radar-desktop"
-version = "1.5.1"
+version = "1.5.2"
 description = "DriverRadar — Windows driver scanner and updater"
 authors = ["yourbossdonpely"]
 edition = "2021"

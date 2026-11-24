@@ -89,12 +89,18 @@ async function download(url, destination) {
 
 function extract(archive, ext, into) {
   if (ext === 'zip') {
-    // The Windows build always has PowerShell; unzip is not guaranteed.
-    execFileSync(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', `Expand-Archive -LiteralPath '${archive}' -DestinationPath '${into}' -Force`],
-      { stdio: 'inherit' },
-    );
+    // Extract with the .NET ZipFile API rather than Expand-Archive: on a GitHub
+    // Windows runner the Expand-Archive cmdlet resolves a PowerShell 7 module
+    // under Windows PowerShell and fails with a method-overload error. The
+    // destination is always a fresh empty folder, so the 2-argument overload
+    // is enough and works on .NET Framework 4.x.
+    const script = [
+      'Add-Type -AssemblyName System.IO.Compression.FileSystem',
+      `[System.IO.Compression.ZipFile]::ExtractToDirectory('${archive.replace(/'/g, "''")}', '${into.replace(/'/g, "''")}')`,
+    ].join('; ');
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      stdio: 'inherit',
+    });
     return;
   }
   const flag = ext === 'tar.xz' ? '-xJf' : '-xzf';
@@ -122,8 +128,11 @@ async function stageNode() {
   await fsp.mkdir(unpacked, { recursive: true });
   extract(archive, info.ext, unpacked);
 
-  const [folder] = (await fsp.readdir(unpacked)).filter((entry) => entry.startsWith('node-'));
-  if (!folder) fail(`The Node archive ${archive} unpacked to nothing.`);
+  const entries = await fsp.readdir(unpacked);
+  const [folder] = entries.filter((entry) => entry.startsWith('node-'));
+  if (!folder) {
+    fail(`The Node archive ${archive} did not unpack a node-* folder (found: ${entries.join(', ') || 'nothing'}).`);
+  }
   const base = path.join(unpacked, folder);
 
   if (platform === 'win32') {

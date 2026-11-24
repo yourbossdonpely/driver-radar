@@ -10,3 +10,10 @@
 *.md text eol=lf
 *.css text eol=lf
 *.html text eol=lf
+
+# The portable ZIP and the C# installer payload only need the app itself.
+# Desktop icons and the icon master are build inputs, not runtime files.
+desktop/src-tauri/icons export-ignore
+desktop/appicon-1024.png export-ignore
+desktop/package-lock.json export-ignore
+

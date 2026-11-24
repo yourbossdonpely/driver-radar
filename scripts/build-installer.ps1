@@ -170,11 +170,20 @@ try {
     $signed = $false
     if ($signtool -and (Test-Path -LiteralPath $signtool)) {
       $signArgs = @('sign', "/f:$pfx", '/p:DriverRadar2026!', '/fd:SHA256', '/tr:http://timestamp.digicert.com', '/td:SHA256', $outFile)
-      & $signtool $signArgs 2>$null | Out-Null
-      if ($LASTEXITCODE -ne 0) {
-        # Retry without timestamp server in case network timestamp fails
-        $signArgsNoTs = @('sign', "/f:$pfx", '/p:DriverRadar2026!', '/fd:SHA256', $outFile)
-        & $signtool $signArgsNoTs 2>$null | Out-Null
+      # signtool writes its own failures to stderr, and under
+      # $ErrorActionPreference = 'Stop' a native command's stderr becomes a
+      # terminating error — which aborted the script before the fallback below.
+      $previousPreference = $ErrorActionPreference
+      $ErrorActionPreference = 'Continue'
+      try {
+        & $signtool $signArgs 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+          # Retry without timestamp server in case network timestamp fails
+          $signArgsNoTs = @('sign', "/f:$pfx", '/p:DriverRadar2026!', '/fd:SHA256', $outFile)
+          & $signtool $signArgsNoTs 2>$null | Out-Null
+        }
+      } finally {
+        $ErrorActionPreference = $previousPreference
       }
       $sig = Get-AuthenticodeSignature -LiteralPath $outFile
       if ($sig.SignerCertificate -ne $null) { $signed = $true }

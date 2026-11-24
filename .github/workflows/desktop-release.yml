@@ -102,9 +102,7 @@ jobs:
         run: |
           files=()
           while IFS= read -r -d '' file; do files+=("$file"); done < <(
-            find desktop/src-tauri/target -type f \(
-              -name '*.exe' -o -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb'
-            \) -path '*/bundle/*' -print0)
+            find desktop/src-tauri/target -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' \) -path '*/bundle/*' -print0)
           if [ ${#files[@]} -eq 0 ]; then
             echo "::error::No installer was produced for ${{ matrix.platform }}/${{ matrix.arch }}."
             exit 1

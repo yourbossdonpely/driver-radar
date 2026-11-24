@@ -505,8 +505,8 @@ the workflow runs four jobs and attaches everything to the same GitHub Release.
 | Runner | Bundle | Asset |
 |---|---|---|
 | `windows-latest` | NSIS | `DriverRadar_<version>_x64-setup.exe` |
-| `macos-13` | DMG (x64) | `DriverRadar_<version>_x64.dmg` |
-| `macos-14` | DMG (arm64) | `DriverRadar_<version>_aarch64.dmg` |
+| `macos-15-intel` | DMG (x64) | `DriverRadar_<version>_x64.dmg` |
+| `macos-15` | DMG (arm64) | `DriverRadar_<version>_aarch64.dmg` |
 | `ubuntu-22.04` | AppImage + deb | `.AppImage` and `.deb` |
 
 Windows can also build locally, without CI:

@@ -6,9 +6,9 @@
 # Requires the Rust toolchain (rustup.rs) and Node 20+. WebView2 is already part
 # of Windows 10 and 11; the installer bootstraps it if a machine is missing it.
 #
-# macOS and Linux installers are built by .github/workflows/desktop-release.yml
-# on their own runners — Tauri links against the host platform, so a .dmg cannot
-# be produced from Windows.
+# The same installer is built by .github/workflows/desktop-release.yml when a tag
+# is pushed. DriverRadar ships for Windows only: the engine is PowerShell, the
+# PnP tree and pnputil.
 param(
   [switch]$SkipStage,
   [string]$Bundles = 'nsis'

@@ -324,8 +324,8 @@ async function handleApi(req, res, url) {
       if (!inside) return json(res, 403, { error: 'forbidden' });
       target = resolved;
     }
-    // Windows opens Explorer; the desktop shell also runs on macOS and Linux
-    // where the same button must open the platform's file manager.
+    // Windows opens Explorer; the other branches only keep a source checkout
+    // usable on another OS.
     const [opener, openerArgs] = IS_WINDOWS
       ? ['explorer.exe', [target]]
       : PLATFORM === 'darwin'

@@ -73,8 +73,8 @@ fn resource_subdir(resource_dir: &Path, name: &str) -> PathBuf {
     direct
 }
 
-/// The bundled runtime layout, per platform. macOS ships `node-x64` and
-/// `node-arm64` so a universal DMG works on both.
+/// The bundled runtime layout. Windows ships `node.exe`; the other names only
+/// keep a source checkout runnable on a developer machine.
 fn node_binary(resource_dir: &Path) -> PathBuf {
     let dir = resource_subdir(resource_dir, "node");
     let candidates: &[&str] = if cfg!(windows) {

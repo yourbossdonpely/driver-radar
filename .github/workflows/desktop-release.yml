@@ -1,8 +1,8 @@
 name: Desktop release
 
-# Builds the native Tauri installers on every platform and attaches them to the
-# GitHub Release for the pushed tag. Tauri links against the host OS, so each
-# platform builds on its own runner.
+# Builds the native Windows installer and attaches it to the GitHub Release for
+# the pushed tag. DriverRadar is a Windows application: the engine is PowerShell,
+# the PnP tree and pnputil, so there is nothing to package for macOS or Linux.
 #
 # Tag the release after scripts/publish.ps1 has created it (that script also
 # uploads the portable ZIP and the classic Windows Setup.exe):
@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing tag to attach the installers to (for example v1.5.0)
+        description: Existing tag to attach the installer to (for example v1.5.0)
         required: true
 
 permissions:
@@ -27,35 +27,7 @@ permissions:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            platform: win32
-            arch: x64
-            bundles: nsis
-            args: ''
-          # macos-13 was retired by GitHub in December 2025 and macos-14 is
-          # deprecated; macos-15-intel is the supported x86_64 image and
-          # macos-15 is the arm64 one.
-          - os: macos-15-intel
-            platform: darwin
-            arch: x64
-            bundles: dmg
-            args: '--target x86_64-apple-darwin'
-          - os: macos-15
-            platform: darwin
-            arch: arm64
-            bundles: dmg
-            args: '--target aarch64-apple-darwin'
-          - os: ubuntu-22.04
-            platform: linux
-            arch: x64
-            bundles: appimage,deb
-            args: ''
-
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -63,60 +35,46 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install Linux webview dependencies
-        if: matrix.platform == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgtk-3-dev libfuse2
-
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'darwin' && (matrix.arch == 'arm64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin') || '' }}
 
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: desktop/src-tauri
 
       - name: Stage the engine and a bundled Node runtime
-        run: node scripts/stage-desktop.js --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
+        run: node scripts/stage-desktop.js --platform win32 --arch x64
 
       - name: Install the Tauri CLI
         working-directory: desktop
         run: npm install --no-audit --no-fund
 
-      - name: Build the installers
+      - name: Build the installer
         working-directory: desktop
         shell: bash
-        run: npx tauri build --bundles ${{ matrix.bundles }} ${{ matrix.args }}
+        run: npx tauri build --bundles nsis
 
-      # gh is preinstalled on every runner, and uploading directly keeps the
-      # asset names exactly what the bundler produced (per-architecture DMGs,
-      # AppImage and deb) instead of letting a wrapper rebuild from the repo root.
-      - name: Attach the installers to the release
+      # gh is preinstalled on the runner, and uploading directly keeps the asset
+      # name exactly what the bundler produced instead of letting a wrapper
+      # rebuild the project.
+      - name: Attach the installer to the release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-        # find rather than a ** glob: the macOS runners still ship bash 3.2,
-        # which has no globstar, so nested bundle folders were never matched.
         run: |
           files=()
           while IFS= read -r -d '' file; do files+=("$file"); done < <(
-            find desktop/src-tauri/target -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' \) -path '*/bundle/*' -print0)
+            find desktop/src-tauri/target -type f -name '*.exe' -path '*/bundle/nsis/*' -print0)
           if [ ${#files[@]} -eq 0 ]; then
-            echo "::error::No installer was produced for ${{ matrix.platform }}/${{ matrix.arch }}."
+            echo "::error::The NSIS installer was not produced."
             exit 1
           fi
           printf 'uploading %s\n' "${files[@]}"
           gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"
 
-      - name: Keep the installers as workflow artifacts too
+      - name: Keep the installer as a workflow artifact too
         uses: actions/upload-artifact@v4
         with:
-          name: driverradar-${{ matrix.platform }}-${{ matrix.arch }}
-          path: |
-            desktop/src-tauri/target/**/release/bundle/nsis/*.exe
-            desktop/src-tauri/target/**/release/bundle/dmg/*.dmg
-            desktop/src-tauri/target/**/release/bundle/appimage/*.AppImage
-            desktop/src-tauri/target/**/release/bundle/deb/*.deb
+          name: driverradar-windows-x64
+          path: desktop/src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error

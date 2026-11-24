@@ -45,9 +45,10 @@ the gap:
 ## The desktop app
 
 DriverRadar is a [Tauri 2](https://tauri.app/) application. Tauri draws the window with the
-operating system's own web view (WebView2 on Windows, WKWebView on macOS, WebKitGTK on
-Linux) and runs a small Rust host, so the download is one installer of about 23 MB rather
-than a bundled browser.
+operating system's own web view (WebView2 on Windows) and runs a small Rust host, so the
+download is one installer of about 23 MB rather than a bundled browser. It is a Windows
+application: the engine drives PowerShell, the PnP tree and `pnputil`, so there is nothing
+for a macOS or Linux build to scan.
 
 ```
 desktop/src-tauri/         Rust shell: window, splash screen, engine supervision
@@ -67,8 +68,6 @@ per-user folder instead of `data\`:
 | OS | Data folder |
 |---|---|
 | Windows | `%LOCALAPPDATA%\com.driverradar.desktop` |
-| macOS | `~/Library/Application Support/com.driverradar.desktop` |
-| Linux | `~/.local/share/com.driverradar.desktop` |
 
 The engine log is `desktop.log` in that folder. Downloads and driver backups live under
 `downloads\` and `driver-backup\` there, and the UI shows the exact path.
@@ -81,8 +80,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-desktop.ps1
 
 That stages the engine, downloads a Node runtime, and writes
 `dist\DriverRadar-<version>-windows-x64-setup.exe`. `scripts\stage-desktop.js` does the
-staging part on its own and accepts `--platform` / `--arch`, which is how the macOS and
-Linux builds work in CI.
+staging part on its own, and is the same script the release workflow runs.
 
 ## Quick start
 
@@ -106,8 +104,6 @@ portable files:
 | Windows 10/11 x64 | `DriverRadar_<version>_x64-setup.exe` | **Recommended.** Native desktop installer (Tauri). Installs per user in `%LOCALAPPDATA%\DriverRadar`, needs no administrator rights to install, bundles Node.js, adds Start Menu and Desktop shortcuts, and uninstalls from **Apps & features**. |
 | Windows 10/11 x64 | `DriverRadar-<version>-Setup.exe` | The original C# setup wizard. Same app and same first-run behaviour as the ZIP, kept so existing users are not stranded. |
 | Windows 10/11 x64 | `DriverRadar-<version>.zip` | **Portable ZIP**, unchanged. Extract anywhere and double-click `start.cmd`. |
-| macOS 11+ | `DriverRadar_<version>_x64.dmg`, `DriverRadar_<version>_aarch64.dmg` | Native desktop app for Intel and Apple Silicon. Opens and runs; the driver engine itself needs Windows (see [Compatibility](#compatibility)). |
-| Linux x64 | `DriverRadar_<version>_amd64.AppImage` and the matching `.deb` | Native desktop app. Same Windows-engine caveat. |
 
 **Windows desktop app (recommended)**
 
@@ -367,8 +363,6 @@ from those machines are very welcome.
 | "The local server stopped" banner | The supervisor restarts the server automatically; press **Retry now** or wait a few seconds. If it stays down, rerun `start.cmd`. |
 | `Failed to fetch` when starting a job | The server process is gone. `start.cmd` + `supervisor.js` keep it alive; restart the launcher once. In the desktop app the shell restarts it for you, and the window reconnects on its own. |
 | Desktop app says "DriverRadar could not start" | Read `desktop.log` in the data folder listed under [The desktop app](#the-desktop-app). Reinstalling keeps downloads and backups. |
-| macOS or Linux build opens but cannot scan | Expected: the driver engine drives PowerShell and `pnputil`, which are Windows components. Use a Windows PC for driver updates. |
-| macOS says the app is damaged or from an unidentified developer | The DMG is not notarized. Right-click the app → **Open**, or run `xattr -dr com.apple.quarantine /Applications/DriverRadar.app`. |
 | "Could not prepare Node.js" | The one-time install needs internet. Check the connection and rerun `start.cmd`; details are in `data\bootstrap.log`. Last resort: install the LTS MSI from [nodejs.org](https://nodejs.org/) manually. |
 | Pill says **Standard user** | The app was started without elevation. Close it and run `start.cmd` again — it elevates before opening. |
 | No updates found | The machine may already be current. Check the **Problems** tab and the notes under the list; OEM builds can be newer than the public catalog. |
@@ -438,12 +432,10 @@ driver-radar/
 ## Limitations
 
 - **Firmware/BIOS is out of scope.** Only Windows driver packages are offered.
-- **Windows-only engine, by design.** The engine is `pnputil`, PnP enumeration, the Windows
-  Update COM API and PowerShell INF installs, so scanning and installing only happen on
-  Windows. The macOS and Linux desktop builds exist and start normally, but they say that
-  plainly instead of failing halfway through a PowerShell call: they are useful for reading
-  the UI and for the project's packaging, not for updating drivers. A real port would mean
-  `udev`, `modprobe` and each vendor's Linux tooling — a different program.
+- **Windows only, by design.** The engine is `pnputil`, PnP enumeration, the Windows Update
+  COM API and PowerShell INF installs, so there is a Windows app and nothing else. macOS
+  and Linux do not need these drivers, and updating them would mean `udev`, `modprobe` and
+  each vendor's own tooling — a different program.
 - **Vendor direct APIs.** AMD (Adrenalin) and Intel (graphics, Wi-Fi, Bluetooth) are
   queried directly where their sites permit automated access; CPUs, chipsets, and every
   other device class fall back to the Microsoft Update Catalog. Vendors that block
@@ -492,22 +484,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\publish.ps1
 from `data\release-notes-<version>.md` (git-ignored). Requires an authenticated `gh`.
 
 A release carries the portable `DriverRadar-<version>.zip`, the
-`DriverRadar-<version>-Setup.exe` wizard, and the native installers for Windows, macOS and
-Linux.
+`DriverRadar-<version>-Setup.exe` wizard, and the native desktop installer
+`DriverRadar_<version>_x64-setup.exe`.
 
-### The desktop installers
+### The desktop installer
 
-The Tauri installers are built by
+The Tauri installer is built by
 [`.github/workflows/desktop-release.yml`](.github/workflows/desktop-release.yml) when a tag
-is pushed. Tauri links against the host platform, so a DMG cannot be produced on Windows:
-the workflow runs four jobs and attaches everything to the same GitHub Release.
+is pushed, and attached to the same GitHub Release. Tauri links against the host OS, so it
+is built on a Windows runner:
 
 | Runner | Bundle | Asset |
 |---|---|---|
 | `windows-latest` | NSIS | `DriverRadar_<version>_x64-setup.exe` |
-| `macos-15-intel` | DMG (x64) | `DriverRadar_<version>_x64.dmg` |
-| `macos-15` | DMG (arm64) | `DriverRadar_<version>_aarch64.dmg` |
-| `ubuntu-22.04` | AppImage + deb | `.AppImage` and `.deb` |
 
 Windows can also build locally, without CI:
 
@@ -526,7 +515,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-desktop.ps1
 :: 2. push main and create the release with the Windows assets
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\publish.ps1
 
-:: 3. tag it so CI builds the macOS and Linux installers onto the same release
+:: 3. tag it so CI rebuilds the desktop installer onto the same release
 git tag v<version>
 git push origin v<version>
 ```

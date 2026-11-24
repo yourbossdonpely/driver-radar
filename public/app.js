@@ -60,6 +60,7 @@
     jobId: null,
     offline: false,
     platform: 'win32',
+    feedName: '',
   };
 
   const esc = (value) =>
@@ -223,9 +224,11 @@
 
     if (app.scanning) {
       if (!previous || previous.phase !== 'scanning') {
+        app.feedName = '';
         renderRows();
         renderStats();
       }
+      renderScanFeed();
       return;
     }
     renderAll();
@@ -511,9 +514,15 @@
     const list = $('#deviceList');
     const s = app.scan;
 
-    if (app.scanning && (!s?.rows || !s.rows.length)) {
+    // While a scan runs the list is the live feed, even if the previous scan's
+    // rows are still in memory waiting to be replaced.
+    if (app.scanning) {
       $('#emptyState').classList.add('hidden');
-      list.innerHTML = Array.from({ length: 7 }, () => '<div class="skeleton"></div>').join('');
+      if (!$('#scanFeed')) {
+        list.innerHTML = feedMarkup();
+        app.feedName = '';
+      }
+      renderScanFeed();
       return;
     }
 
@@ -538,6 +547,77 @@
 
     $('#emptyState').classList.add('hidden');
     list.innerHTML = rows.map(rowHtml).join('');
+  }
+
+  // The scan streams the name of every device it checks, so the list becomes a
+  // live feed while the engine works instead of seven grey placeholders.
+  function feedMarkup() {
+    return `
+      <div class="scan-feed" id="scanFeed" aria-live="polite">
+        <div class="scan-feed-head">
+          <span class="scan-feed-label"><span class="feed-pulse" aria-hidden="true"></span>Scanning devices</span>
+          <span class="scan-feed-count"><b id="feedCount">0</b><span class="feed-total" id="feedTotal">/ \u2014</span></span>
+        </div>
+        <div class="feed-current" id="feedCurrent">
+          <span class="feed-class" id="feedCurrentClass">Device</span>
+          <span class="feed-name" id="feedCurrentName">Reading the live device tree\u2026</span>
+        </div>
+        <div class="scan-feed-list" id="feedList"></div>
+      </div>`;
+  }
+
+  function renderScanFeed() {
+    const s = app.scan || {};
+    if (!$('#scanFeed')) return;
+    const recent = Array.isArray(s.recent) ? s.recent : [];
+    const head = recent[0];
+
+    if (head && head.name && head.name !== app.feedName) {
+      app.feedName = head.name;
+      const nameEl = $('#feedCurrentName');
+      if (nameEl) {
+        nameEl.textContent = head.name;
+        nameEl.title = head.name;
+      }
+      const classEl = $('#feedCurrentClass');
+      if (classEl) classEl.textContent = head.cls || 'Device';
+      const box = $('#feedCurrent');
+      if (box) {
+        box.classList.remove('flash');
+        void box.offsetWidth;
+        box.classList.add('flash');
+      }
+    }
+
+    const countEl = $('#feedCount');
+    if (countEl) countEl.textContent = String(s.scannedCount || 0);
+    const totalEl = $('#feedTotal');
+    if (totalEl) totalEl.textContent = s.candidateCount ? `/ ${s.candidateCount}` : '/ \u2014';
+
+    syncFeedRows(recent.slice(1, 9));
+  }
+
+  // Only touch what changed, so rows keep their entry animation instead of
+  // restarting on every event.
+  function syncFeedRows(entries) {
+    const list = $('#feedList');
+    if (!list) return;
+    const names = entries.map((entry) => entry.name);
+    for (const node of Array.from(list.children)) {
+      if (!names.includes(node.dataset.name)) node.remove();
+    }
+    entries.forEach((entry, index) => {
+      const at = list.children[index] || null;
+      if (at && at.dataset.name === entry.name) return;
+      const node = document.createElement('div');
+      node.className = 'feed-row';
+      node.dataset.name = entry.name;
+      node.innerHTML =
+        `<span class="feed-class">${esc(entry.cls || 'Device')}</span>` +
+        `<span class="feed-name">${esc(entry.name)}</span>`;
+      list.insertBefore(node, at);
+    });
+    while (list.children.length > names.length && list.lastElementChild) list.lastElementChild.remove();
   }
 
   function updateOrb() {
@@ -633,8 +713,14 @@
       cached: false,
       stageLabel: 'Starting scan',
       startedAt: new Date().toISOString(),
+      current: null,
+      recent: [],
+      scannedCount: 0,
+      candidateCount: 0,
     };
+    app.feedName = '';
     document.body.classList.add('scanning');
+    renderRows();
     renderStats();
     renderTabs();
     updateOrb();

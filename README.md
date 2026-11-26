@@ -1,4 +1,4 @@
-# DriverRadar
+# DriverRadar by Don PELY
 
 **Open-source driver updates for Windows — scan every device, verify against the
 Microsoft Update Catalog, download over parallel connections.**
